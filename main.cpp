@@ -1,97 +1,50 @@
-#include <vector>
-#include <optional>
-#include <tuple>
-#include <map>
-#include <queue>
-#include <random>
+#include "importGraph.h"
+#include "flow.h"
+
+#include "json.hpp"
+
 #include <iostream>
 
 using namespace std;
+using json = nlohmann::json;
 
-using Node = uint32_t;
+//	DB db = importGraph(argv[1]);
+//	auto edges = findEdgesInGraphData(db);
+//	edgeSetToJson(edges, "edges.json");
 
-pair<uint32_t, map<Node, Node>> augmentingPath(
-	Node _source,
-	Node _sink,
-	map<Node, map<Node, uint32_t>> const& _capacity
-)
+int main(int argc, char const** argv)
 {
-	map<Node, Node> parent;
-	queue<pair<Node, uint32_t>> q;
-	q.emplace(_source, uint32_t(-1));
-
-	while (!q.empty())
+	if (argc != 5)
 	{
-		auto [node, flow] = q.front();
-		q.pop();
-		if (!_capacity.count(node))
-			continue;
-		for (auto const& [target, capacity]: _capacity.at(node))
-			if (!parent.count(target) && capacity > 0)
-			{
-				parent[target] = node;
-				uint32_t newFlow = min(flow, capacity);
-				if (target == _sink)
-					return make_pair(newFlow, move(parent));
-				q.emplace(target, newFlow);
-			}
+		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.json>\n";
+		exit(1);
 	}
-	return {0, {}};
+
+	Address source = Address(string(argv[1]));
+	Address sink = Address(string(argv[2]));
+	Int value = Int(string(argv[3]));
+
+	set<Edge> edges = importEdges(argv[4]);
+	//cout << "Edges: " << edges.size() << endl;
+
+	auto [flow, transfers] = computeFlow(source, sink, edges, value);
+//	cout << "Flow: " << flow << endl;
+//	cout << "Transfers: " << endl;
+//	for (Edge const& edge: transfers)
+//		cout << edge.from << " (" << edge.token << ") -> " << edge.to << " - " << edge.capacity << endl;
+
+	size_t stepNr = 0;
+	json transfersJson = json::array();
+	for (Edge const& transfer: transfers)
+		transfersJson.push_back(nlohmann::json{
+			{"step", stepNr},
+			{"from", to_string(transfer.from)},
+			{"to", to_string(transfer.to)},
+			{"token", to_string(transfer.token)},
+			{"value", to_string(transfer.capacity)}
+		});
+	cout << json{
+		{"maxFlowValue", to_string(flow)},
+		{"transferSteps", move(transfersJson)}
+	} << endl;
 }
-
-//pair<uint32_t, vector<Node>>
-// TODO: Actually also return the edges with capacity.
-uint32_t maxFlow(Node _source, Node _sink, map<Node, map<Node, uint32_t>> _capacity)
-{
-	uint32_t flow = 0;
-	while (true)
-	{
-		auto [newFlow, parents] = augmentingPath(_source, _sink, _capacity);
-		if (newFlow == 0)
-			return flow;
-		flow += newFlow;
-		for (Node node = _sink; node != _source;)
-		{
-			Node prev = parents[node];
-			_capacity[prev][node] -= newFlow;
-			_capacity[node][prev] += newFlow;
-			// TODO this is not really the edge because the capacity could be adjusted later on?
-			//cout << "Edge: " << prev << " -> " << node << ": " << newFlow << "\n";
-			node = prev;
-		}
-	}
-	return flow;
-}
-
-
-extern "C" {
-uint32_t flow(uint32_t, uint32_t);
-}
-
-extern uint32_t flow(uint32_t const _nodeCount, uint32_t const _neighborCount)
-{
-	default_random_engine generator(static_cast<unsigned int>(time(0)));
-	uniform_int_distribution<uint32_t> randomNode(0, _nodeCount);
-	uniform_int_distribution<uint32_t> randomCapacity(0, 10);
-
-	cout << "Building network..." << endl;
-	size_t edgeCount = 0;
-	map<Node, map<Node, uint32_t>> capacities;
-	for (Node n = 0; n < _nodeCount; n++)
-		for (size_t i = 0; i < _neighborCount; i++)
-		{
-			capacities[n][randomNode(generator)] = randomCapacity(generator);
-			edgeCount++;
-		}
-
-	cout << "Computing flow..." << endl;
-	uint32_t flow = maxFlow(0, _nodeCount - 1, capacities);
-	cout << "Nodes: " << _nodeCount << " Edges: " << edgeCount << endl;
-	cout << "Max flow: " << flow << endl;
-	return flow;
-}
-
-//int main(void)
-//{
-//	//flow();
-//}

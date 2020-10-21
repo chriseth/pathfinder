@@ -73,6 +73,14 @@ endif()
 set(
 	sources
 	main.cpp
+	types.h
+	exceptions.h
+	types.cpp
+	importGraph.h
+	importGraph.cpp
+	flow.h
+	flow.cpp
+	json.hpp
 )
 
 add_executable(pathfinder ${sources})
