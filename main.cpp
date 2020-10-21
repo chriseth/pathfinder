@@ -55,6 +55,8 @@ uint32_t maxFlow(Node _source, Node _sink, map<Node, map<Node, uint32_t>> _capac
 			Node prev = parents[node];
 			_capacity[prev][node] -= newFlow;
 			_capacity[node][prev] += newFlow;
+			// TODO this is not really the edge because the capacity could be adjusted later on?
+			//cout << "Edge: " << prev << " -> " << node << ": " << newFlow << "\n";
 			node = prev;
 		}
 	}
@@ -62,26 +64,34 @@ uint32_t maxFlow(Node _source, Node _sink, map<Node, map<Node, uint32_t>> _capac
 }
 
 
-int main(void)
+extern "C" {
+uint32_t flow(uint32_t, uint32_t);
+}
+
+extern uint32_t flow(uint32_t const _nodeCount, uint32_t const _neighborCount)
 {
-	uint32_t nodeCount = 40000;
-	uint32_t neighborCount = 10;
-	default_random_engine generator;
-	uniform_int_distribution<uint32_t> randomNode(0, nodeCount);
+	default_random_engine generator(static_cast<unsigned int>(time(0)));
+	uniform_int_distribution<uint32_t> randomNode(0, _nodeCount);
 	uniform_int_distribution<uint32_t> randomCapacity(0, 10);
 
 	cout << "Building network..." << endl;
 	size_t edgeCount = 0;
 	map<Node, map<Node, uint32_t>> capacities;
-	for (Node n = 0; n < nodeCount; n++)
-		for (size_t i = 0; i < neighborCount; i++)
+	for (Node n = 0; n < _nodeCount; n++)
+		for (size_t i = 0; i < _neighborCount; i++)
 		{
 			capacities[n][randomNode(generator)] = randomCapacity(generator);
 			edgeCount++;
 		}
-	cout << "Nodes: " << nodeCount << " Edges: " << edgeCount << endl;
 
 	cout << "Computing flow..." << endl;
-	uint32_t flow = maxFlow(0, nodeCount - 1, capacities);
+	uint32_t flow = maxFlow(0, _nodeCount - 1, capacities);
+	cout << "Nodes: " << _nodeCount << " Edges: " << edgeCount << endl;
 	cout << "Max flow: " << flow << endl;
+	return flow;
 }
+
+//int main(void)
+//{
+//	//flow();
+//}

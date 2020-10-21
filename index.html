@@ -1,0 +1,24 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<h1>Pathfinder</h1>
+<p>Max flow in random graph with <input id="nodes" type="text" value="10000"/> nodes
+and <input id="neighbors" type="text" value="5"/> outgoing edges per node.</p>
+<button id="compute">compute</button>
+<p>Max flow: <span id="flow">?</span></p>
+<script src="./emscripten_build/pathfinder.js"></script>
+<script type="text/javascript" language="javascript">
+document.getElementById("compute").onclick = function() {
+    let nodes = document.getElementById("nodes").value - 0;
+    let neighbors = document.getElementById("neighbors").value - 0;
+    document.getElementById("flow").innerText = "computing...";
+    window.setTimeout(function() {
+        f = Module._flow(nodes, neighbors);
+        document.getElementById("flow").innerText = f;
+    }, 10);
+};
+</script>
+</body>
+</html>
