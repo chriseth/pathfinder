@@ -8,11 +8,11 @@
 using namespace std;
 
 /// Either an actual node, or a newly introduced node on a token edge.
-using Node = variant<Address, tuple<Address, Address, Address>>;
+using Node = variant<Address, tuple<Address, Address>>;
 
 Node pseudoNode(Edge const& _edge)
 {
-	return make_tuple(_edge.from, _edge.to, _edge.token);
+	return make_tuple(_edge.from, _edge.token);
 }
 
 /// Turns the edge set into an adjacency list.
@@ -22,7 +22,10 @@ map<Node, map<Node, Int>> computeAdjacencies(set<Edge> const& _edges)
 	map<Node, map<Node, Int>> adjacencies;
 	for (Edge const& edge: _edges)
 	{
-		adjacencies[edge.from][pseudoNode(edge)] = edge.capacity;
+		// One edge from "from" to "from x token" with a capacity as the max over
+		// all contributing edges (the balance of the sender)
+		adjacencies[edge.from][pseudoNode(edge)] = max(edge.capacity, adjacencies[edge.from][pseudoNode(edge)]);
+		// Another edge from "from x token" to "to" with its own capacity (based on the trust)
 		adjacencies[pseudoNode(edge)][edge.to] = edge.capacity;
 	}
 	return adjacencies;
@@ -85,10 +88,16 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 		auto [node, amount] = *nodeBalances.begin();
 		nodeBalances.erase(node);
 
-		for (auto& [toNode, capacity]: _usedEdges[node])
-			if (capacity > Int(0))
+		for (auto& edge: _usedEdges[node])
+		{
+			Node const& intermediate = edge.first;
+			for (auto& [toNode, capacity]: _usedEdges[intermediate])
 			{
-				auto const& [from, to, token] = std::get<tuple<Address, Address, Address>>(toNode);
+				if (capacity == Int(0))
+					continue;
+
+				auto const& [from, token] = std::get<tuple<Address, Address>>(intermediate);
+				Address to = std::get<Address>(toNode);
 				// TOOD the JS code mentions that the same token can be transacted
 				// between the same addresses multiple times. This would be a problem here.
 				Int transferAmount = min(amount, capacity);
@@ -100,11 +109,12 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 				capacity -= transferAmount;
 				nodeBalances[to] += transferAmount;
 			}
-		for (auto it = _usedEdges[node].begin(); it != _usedEdges[node].end();)
-			if (it->second == Int(0))
-				it = _usedEdges[node].erase(it);
-			else
-				++it;
+			for (auto it = _usedEdges[intermediate].begin(); it != _usedEdges[intermediate].end();)
+				if (it->second == Int(0))
+					it = _usedEdges[intermediate].erase(it);
+				else
+					++it;
+		}
 	}
 	return transfers;
 }
