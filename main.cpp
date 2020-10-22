@@ -37,7 +37,7 @@ int main(int argc, char const** argv)
 	json transfersJson = json::array();
 	for (Edge const& transfer: transfers)
 		transfersJson.push_back(nlohmann::json{
-			{"step", stepNr},
+			{"step", stepNr++},
 			{"from", to_string(transfer.from)},
 			{"to", to_string(transfer.to)},
 			{"token", to_string(transfer.token)},
