@@ -4,6 +4,7 @@
 #include "json.hpp"
 
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 using json = nlohmann::json;
@@ -11,6 +12,49 @@ using json = nlohmann::json;
 //	DB db = importGraph(argv[1]);
 //	auto edges = findEdgesInGraphData(db);
 //	edgeSetToJson(edges, "edges.json");
+
+set<Edge> edges;
+
+extern "C" {
+size_t loadEdges(char const* _data, size_t _length);
+}
+
+size_t loadEdges(char const* _data, size_t _length)
+{
+	string data(_data, _length);
+	istringstream stream(data);
+	edges = importEdgesBinary(stream);
+	return edges.size();
+}
+
+extern "C" {
+char const* flow(char const* _input);
+}
+
+char const* flow(char const* _input)
+{
+	static string retVal;
+
+	json parameters = json::parse(string(_input));
+	Address from{string(parameters["from"])};
+	Address to{string(parameters["to"])};
+	Int value{string(parameters["value"])};
+	auto [flow, transfers] = computeFlow(from, to, edges, value);
+
+	json output;
+	output["flow"] = to_string(flow);
+	for (Edge const& t: transfers)
+		output["transfers"].push_back(json{
+			{"from", to_string(t.from)},
+			{"to", to_string(t.to)},
+			{"token", to_string(t.token)},
+			{"value", to_string(t.capacity)}
+		});
+
+	retVal = output.dump();
+
+	return retVal.c_str();
+}
 
 int main(int argc, char const** argv)
 {

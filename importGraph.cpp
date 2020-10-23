@@ -237,33 +237,39 @@ void edgeSetToBinary(set<Edge> const& _edges, char const* _file)
 
 set<Edge> importEdgesBinary(char const* _file)
 {
+	ifstream f(_file);
+	set<Edge> edges = importEdgesBinary(f);
+	f.close();
+	return edges;
+}
+
+set<Edge> importEdgesBinary(istream& _stream)
+{
 	vector<Address> addresses;
 	set<Edge> edges;
 
-	ifstream f(_file);
 	uint64_t numAddresses{};
-	f >> BigEndian<2>(numAddresses);
+	_stream >> BigEndian<2>(numAddresses);
 	for (size_t i = 0; i < numAddresses; i++)
 	{
 		Address address;
-		f.read(reinterpret_cast<char*>(&(address.address[0])), 20);
+		_stream.read(reinterpret_cast<char*>(&(address.address[0])), 20);
 		addresses.emplace_back(move(address));
 	}
 
-	while (f.peek() != EOF)
+	while (_stream.peek() != EOF)
 	{
 		Edge edge;
 		uint64_t index{};
-		f >> BigEndian<2>(index);
+		_stream >> BigEndian<2>(index);
 		edge.from = addresses.at(index);
-		f >> BigEndian<2>(index);
+		_stream >> BigEndian<2>(index);
 		edge.to = addresses.at(index);
-		f >> BigEndian<2>(index);
+		_stream >> BigEndian<2>(index);
 		edge.token = addresses.at(index);
-		edge.capacity = readCompactInt(f);
+		edge.capacity = readCompactInt(_stream);
 		edges.insert(edge);
 	}
 
-	f.close();
 	return edges;
 }
