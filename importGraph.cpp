@@ -119,6 +119,9 @@ set<Edge> importEdges(char const* _file)
 	f >> edgesJson;
 	f.close();
 
+	if (edgesJson.is_object() && edgesJson["edges"].is_array())
+		edgesJson = move(edgesJson["edges"]);
+
 	set<Edge> edges;
 	for (auto const& edge: edgesJson)
 	{
