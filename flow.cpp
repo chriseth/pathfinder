@@ -3,6 +3,7 @@
 #include <queue>
 #include <iostream>
 #include <variant>
+#include <functional>
 
 using namespace std;
 
@@ -27,6 +28,15 @@ map<Node, map<Node, Int>> computeAdjacencies(set<Edge> const& _edges)
 	return adjacencies;
 }
 
+vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
+{
+	vector<pair<Node, Int>> r(_capacities.begin(), _capacities.end());
+	sort(r.begin(), r.end(), [](pair<Node, Int> const& _a, pair<Node, Int> const& _b) {
+		return make_pair(get<1>(_a), get<0>(_a)) > make_pair(get<1>(_b), get<0>(_b));
+	});
+	return r;
+}
+
 pair<Int, map<Node, Node>> augmentingPath(
 	Address const& _source,
 	Address const& _sink,
@@ -45,7 +55,7 @@ pair<Int, map<Node, Node>> augmentingPath(
 		q.pop();
 		if (!_capacity.count(node))
 			continue;
-		for (auto const& [target, capacity]: _capacity.at(node))
+		for (auto const& [target, capacity]: sortedByCapacity(_capacity.at(node)))
 			if (!parent.count(target) && Int(0) < capacity)
 			{
 				parent[target] = node;
