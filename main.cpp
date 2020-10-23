@@ -14,6 +14,14 @@ using json = nlohmann::json;
 
 int main(int argc, char const** argv)
 {
+	if (argc == 4 && argv[1] == string("--export-binary"))
+	{
+		DB db = importGraph(argv[2]);
+		auto edges = findEdgesInGraphData(db);
+		edgeSetToBinary(edges, argv[3]);
+		exit(0);
+	}
+
 	if (argc != 5)
 	{
 		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.json>\n";
@@ -24,7 +32,12 @@ int main(int argc, char const** argv)
 	Address sink = Address(string(argv[2]));
 	Int value = Int(string(argv[3]));
 
-	set<Edge> edges = importEdges(argv[4]);
+	set<Edge> edges;
+	string fileName = argv[4];
+	if (fileName.size() >= 4 && fileName.substr(fileName.size() - 4) == ".dat")
+		edges = importEdgesBinary(argv[4]);
+	else
+		edges = importEdges(argv[4]);
 	//cout << "Edges: " << edges.size() << endl;
 
 	auto [flow, transfers] = computeFlow(source, sink, edges, value);
