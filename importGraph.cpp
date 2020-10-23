@@ -68,11 +68,12 @@ set<Edge> findEdgesInGraphData(DB const& _db)
 			Token const& token = _db.token(tokenAddress);
 			// TODO can there be mulitple such connections?
 			auto it = extendedConnections.find(Connection{connection.canSendToAddress, token.safeAddress, {}});
+			if (it == extendedConnections.end())
+				continue;
 			Int capacity = min(balance, it->limit);
-			if (it == extendedConnections.end() || capacity == Int(0))
+			if (capacity == Int(0))
 				continue;
 
-			// TODO the js alg divides capacities by 10**18 here.
 			Edge edge{
 				connection.userAddress,
 				connection.canSendToAddress,
