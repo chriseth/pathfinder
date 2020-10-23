@@ -123,10 +123,19 @@ char toHex(uint8_t _c)
 
 Address::Address(string const& _hex)
 {
-	require(_hex.size() == 2 + 2 * 20);
+	if (_hex.size() >= 2 && _hex[0] == '0' && _hex[1] == 'x')
+	{
+		require(_hex.size() == 2 + 2 * 20);
 
-	for (size_t i = 2; i < _hex.size(); i += 2)
-		address[i / 2 - 1] = (fromHex(_hex[i]) << 4) + fromHex(_hex[i + 1]);
+		for (size_t i = 2; i < _hex.size(); i += 2)
+			address[i / 2 - 1] = (fromHex(_hex[i]) << 4) + fromHex(_hex[i + 1]);
+	}
+	else
+	{
+		Int number(_hex);
+		for (size_t i = 0; i < 20; i++)
+			address[i] = (number.data[3 - (i + 12) / 8] >> (56 - 8 * ((i + 12) % 8))) & 0xff;
+	}
 }
 
 string to_string(Address const& _address)
