@@ -1,23 +1,64 @@
+<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {
+    font-family: "Noto Sans", sans-serif;
+}
+.container { display: flex; flex-wrap: nowrap; }
+.descriptor { width: 3.5em; display: inline-block; }
+.suggestion { height: 2em; display: flex; flex-direction: row; }
+.avatarImage { height: 100%; width: 2em; }
+.step { height: 4ex; }
+.stepValue { width: 9em; text-align: right; display: inline-block; }
+.name { width: 6em; display: inline-block; }
+small {
+  width: 6em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+</style>
 </head>
 <body>
 <h1>Pathfinder</h1>
 <p>Compute max transfer in CirclesUBI graph</p>
 <p>Number of edges in the graph: <span id="edgeCount">loading...</span></p>
 <p>
-From: <input id="from" type="text" /><br/>
-To: <input id="to" type="text" /><br/>
-Value: <input id="value" type="text" /> (put 0 to compute max value to transact)
-</p>
+<div class="container" style="flex-direction: column;">
+<div id="fromSelector" class="container">
+<span class="descriptor">From:</span><input id="from" type="text" /><div id="fromSuggestion" class="suggestion container"></div>
+</div>
+<div id="toSelector" class="container">
+<span class="descriptor">To:</span><input id="to" type="text" /><div id="toSuggestion" class="suggestion container"></div>
+</div>
+<div id="toSelector" class="container">
+<span class="descriptor">Value:</span><input id="value" type="text" /> (put 0 to compute max value to transact)
+</div>
+</div>
 <button id="compute">compute</button>
 <p>Value: <span id="flow">?</span></p>
 <p>Steps:</p>
-<div id="steps" />
+<div id="steps" class="container" style="flex-direction: column;"/>
 <script src="./emscripten_build/pathfinder.js"></script>
 <script type="text/javascript" language="javascript">
-window.onload = function() {
+let CirclesAPI = 'https://api.circles.garden/api/';
+
+let queryUser = function(username, callback) {
+    var req = new XMLHttpRequest();
+    req.open("GET", CirclesAPI + 'users/?query=' + username, true);
+    req.onload = function() {
+        if (req.response) {
+            callback(JSON.parse(req.responseText));
+        }
+    };
+    req.send(null);
+}
+
+let loadEdges = function() {
     var req = new XMLHttpRequest();
     req.open("GET", "edges.dat", true);
     req.responseType = "arraybuffer";
@@ -33,7 +74,58 @@ window.onload = function() {
         }
     };
     req.send(null);
- };
+};
+let setupSuggestions = function(x) {
+    let inputBox = document.getElementById(x);
+    inputBox.onkeyup = function() {
+        let sugBox = document.getElementById(x + "Suggestion");
+        sugBox.innerHTML = '';
+        queryUser(inputBox.value, function(suggestion) {
+            for (user of suggestion.data) {
+                sugBox.innerHTML = `<img class="avatarImage" src="${user.avatarUrl}" /><div>@${user.username} <small class="address">${user.safeAddress}</small></div>`;
+                sugBox.onclick = function() {
+                    inputBox.value = user.safeAddress;
+                }
+                break;
+            }
+        });
+    };
+};
+
+let fillUsernames = function(addresses) {
+    var req = new XMLHttpRequest();
+    let url = CirclesAPI + 'users/?';
+    for (addr of addresses) {
+        url += '&address[]=' + addr;
+    }
+    req.open("GET", url, true);
+    req.onload = function() {
+        if (req.response) {
+            for (user of JSON.parse(req.responseText).data) {
+                for (el of document.querySelectorAll('#steps .username')) {
+                    if (el.querySelector('small').innerHTML == user.safeAddress) {
+                        el.querySelector('img').src = user.avatarUrl;
+                        el.querySelector('.name').innerHTML = user.username;
+                    }
+                }
+            }
+        }
+    };
+    req.send(null);
+};
+
+let formatValue = function(value) {
+    while (value.length <= 10)
+        value = '0' + value;
+    return value.substr(0, value.length - 10) + '.' + value.substr(value.length - 10, 2);
+};
+
+window.onload = function() {
+    loadEdges();
+    for (x of ["from", "to"]) {
+        setupSuggestions(x);
+    }
+};
 document.getElementById("compute").onclick = function() {
     let from = document.getElementById("from").value;
     let to = document.getElementById("to").value;
@@ -49,11 +141,17 @@ document.getElementById("compute").onclick = function() {
     let data = JSON.parse(output);
     document.getElementById("flow").innerText = data.flow;
     document.getElementById("steps").innerHTML = '';
+    let addressesToQuery = [];
     for (step of data.transfers) {
         document.getElementById("steps").innerHTML +=
-            'From ' + step.from + " -> " + step.to + " (token: " + step.token + "): "  + step.value + "<br/>";
-        console.log(step);
+            '<div class="step">' + 
+            `<span class="stepValue">${formatValue(step.value)}</span> <span class="username"><img class="avatarImage"/><span class="name"></span> <small>${step.from}</small></span> ->` +
+            `<span class="username"><img class="avatarImage"/><span class="name"></span> <small>${step.to}</small></span> (` +
+            `<small>${step.token}</small>)` +
+            '</div>';
+        addressesToQuery = addressesToQuery.concat([step.from, step.to, step.token]);
     }
+    fillUsernames(addressesToQuery);
 };
 </script>
 </body>
