@@ -1,6 +1,7 @@
 #include "types.h"
 
 #include "exceptions.h"
+#include "keccak.h"
 
 using namespace std;
 
@@ -140,11 +141,23 @@ Address::Address(string const& _hex)
 
 string to_string(Address const& _address)
 {
-	string ret = "0x";
+	string lower;
 	for (uint8_t c: _address.address)
 	{
-		ret.push_back(toHex(c >> 4));
-		ret.push_back(toHex(c & 0xf));
+		lower.push_back(toHex(c >> 4));
+		lower.push_back(toHex(c & 0xf));
+	}
+	string hash = keccak256(lower);
+
+	string ret = "0x";
+	for (unsigned i = 0; i < 40; ++i)
+	{
+		char addressCharacter = lower[i];
+		uint8_t nibble = hash[i / 2u] >> (4u * (1u - (i % 2u))) & 0xf;
+		if (nibble >= 8)
+			ret += static_cast<char>(toupper(addressCharacter));
+		else
+			ret += static_cast<char>(tolower(addressCharacter));
 	}
 	return ret;
 }

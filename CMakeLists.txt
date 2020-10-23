@@ -80,6 +80,8 @@ set(
 	importGraph.cpp
 	flow.h
 	flow.cpp
+	keccak.h
+	keccak.cpp
 	json.hpp
 )
 
