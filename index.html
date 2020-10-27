@@ -10,8 +10,8 @@ body {
 .container { display: flex; flex-wrap: nowrap; }
 .descriptor { width: 3.5em; display: inline-block; }
 .suggestion { height: 2em; display: flex; flex-direction: row; }
-.avatarImage { height: 100%; width: 2em; }
-.step { height: 4ex; }
+.avatarImage { height: 100%; width: 2em; vertical-align: middle; }
+.step { height: 4ex; padding: 1ex; border-bottom: 1px solid black; }
 .stepValue { width: 9em; text-align: right; display: inline-block; }
 .name { width: 6em; display: inline-block; }
 small {
@@ -46,6 +46,7 @@ small {
 <script src="./emscripten_build/pathfinder.js"></script>
 <script type="text/javascript" language="javascript">
 let CirclesAPI = 'https://api.circles.garden/api/';
+let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
 
 let queryUser = function(username, callback) {
     var req = new XMLHttpRequest();
@@ -56,6 +57,27 @@ let queryUser = function(username, callback) {
         }
     };
     req.send(null);
+}
+
+let tokenDB = {};
+
+let userByToken = function(token, callback) {
+    token = token.toLowerCase();
+    if (tokenDB[token] !== undefined) {
+        callback(token, tokenDB[token]);
+        return;
+    }
+
+    var req = new XMLHttpRequest();
+    req.open("POST", GraphAPI, true);
+    req.onload = function() {
+        let safeAddress = JSON.parse(req.responseText).data.token.owner.id;
+        tokenDB[token] = safeAddress;
+        callback(token, safeAddress);
+    }
+    req.send(JSON.stringify({
+        query: `{token(id:"${token}") {  owner { id } } }`
+    }));
 }
 
 let loadEdges = function() {
@@ -92,6 +114,19 @@ let setupSuggestions = function(x) {
     };
 };
 
+let userDB = {};
+
+let completeUserInfo = function() {
+    for (el of document.querySelectorAll('#steps .username')) {
+        let safeAddress = el.querySelector('small').innerHTML.toLowerCase();
+        if (userDB[safeAddress] !== undefined) {
+            let user = userDB[safeAddress];
+            el.querySelector('img').src = user.avatarUrl;
+            el.querySelector('.name').innerHTML = user.username;
+        }
+    }
+};
+
 let fillUsernames = function(addresses) {
     var req = new XMLHttpRequest();
     let url = CirclesAPI + 'users/?';
@@ -102,16 +137,28 @@ let fillUsernames = function(addresses) {
     req.onload = function() {
         if (req.response) {
             for (user of JSON.parse(req.responseText).data) {
-                for (el of document.querySelectorAll('#steps .username')) {
-                    if (el.querySelector('small').innerHTML == user.safeAddress) {
-                        el.querySelector('img').src = user.avatarUrl;
-                        el.querySelector('.name').innerHTML = user.username;
-                    }
-                }
+                userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
+            completeUserInfo();
         }
     };
     req.send(null);
+};
+
+let translateTokens = function(tokens) {
+    for (token of tokens) {
+        userByToken(token, function(token, safeAddress) {
+            safeAddress = safeAddress.toLowerCase();
+            if (userDB[safeAddress] !== undefined) {
+                for (el of document.querySelectorAll('#steps .token')) {
+                    if (el.querySelector('small').innerHTML.toLowerCase() == token.toLowerCase()) {
+                        el.querySelector('img').src = userDB[safeAddress].avatarUrl;
+                        el.querySelector('.name').innerHTML = userDB[safeAddress].username;
+                    }
+                }
+            }
+        });
+    }
 };
 
 let formatValue = function(value) {
@@ -157,16 +204,19 @@ document.getElementById("compute").onclick = function() {
     document.getElementById("flow").innerText = formatValue(data.flow);
     document.getElementById("steps").innerHTML = '';
     let addressesToQuery = [];
+    let tokensToQuery = [];
     for (step of data.transfers) {
         document.getElementById("steps").innerHTML +=
             '<div class="step">' + 
             `<span class="stepValue">${formatValue(step.value)}</span> <span class="username"><img class="avatarImage"/><span class="name"></span> <small>${step.from}</small></span> ->` +
-            `<span class="username"><img class="avatarImage"/><span class="name"></span> <small>${step.to}</small></span> (` +
-            `<small>${step.token}</small>)` +
+            `<span class="username"><img class="avatarImage"/><span class="name"></span> <small>${step.to}</small></span> (Token: ` +
+            `<span class="token"><img class="avatarImage"/><span class="name"></span> <small>${step.token}</small>)` +
             '</div>';
-        addressesToQuery = addressesToQuery.concat([step.from, step.to, step.token]);
+        addressesToQuery = addressesToQuery.concat([step.from, step.to]);
+        tokensToQuery.push(step.token)
     }
     fillUsernames(addressesToQuery);
+    translateTokens(tokensToQuery);
 };
 </script>
 </body>
