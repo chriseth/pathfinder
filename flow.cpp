@@ -46,6 +46,9 @@ pair<Int, map<Node, Node>> augmentingPath(
 	map<Node, map<Node, Int>> const& _capacity
 )
 {
+	if (_source == _sink || !_capacity.count(_source))
+		return {Int(0), {}};
+
 	map<Node, Node> parent;
 	queue<pair<Node, Int>> q;
 	q.emplace(_source, Int::max());
