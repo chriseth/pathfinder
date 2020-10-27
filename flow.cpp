@@ -4,6 +4,7 @@
 #include <iostream>
 #include <variant>
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 
@@ -13,6 +14,23 @@ using Node = variant<Address, tuple<Address, Address>>;
 Node pseudoNode(Edge const& _edge)
 {
 	return make_tuple(_edge.from, _edge.token);
+}
+
+/// Concatenate the contents of a container onto a vector, move variant.
+template <class T, class U> vector<T>& operator+=(vector<T>& _a, U&& _b)
+{
+	std::move(_b.begin(), _b.end(), std::back_inserter(_a));
+	return _a;
+}
+
+template <class K, class V, class F>
+void erase_if(map<K, V>& _container, F const& _fun)
+{
+	for (auto it = _container.begin(); it != _container.end();)
+		 if (_fun(*it))
+			it = _container.erase(it);
+		 else
+			++it;
 }
 
 /// Turns the edge set into an adjacency list.
@@ -74,51 +92,55 @@ pair<Int, map<Node, Node>> augmentingPath(
 	return {Int(0), {}};
 }
 
+/// Extract the next list of transfers until we get to a situation where
+/// we cannot transfer the full balance and start over.
+vector<Edge> extractNextTransfers(map<Node, map<Node, Int>>& _usedEdges, map<Address, Int>& _nodeBalances)
+{
+	vector<Edge> transfers;
+
+	for (auto& [node, balance]: _nodeBalances)
+		for (auto& edge: _usedEdges[node])
+		{
+			Node const& intermediate = edge.first;
+			for (auto& [toNode, capacity]: _usedEdges[intermediate])
+			{
+				auto const& [from, token] = std::get<tuple<Address, Address>>(intermediate);
+				Address to = std::get<Address>(toNode);
+				if (capacity == Int(0))
+					continue;
+				if (balance < capacity)
+				{
+					// We do not have enough balance yet, there will be another transfer along this edge.
+					if (!transfers.empty())
+						return transfers;
+					else
+						continue;
+				}
+				transfers.push_back(Edge{from, to, token, capacity});
+				balance -= capacity;
+				_nodeBalances[to] += capacity;
+				capacity = Int(0);
+			}
+		}
+
+	erase_if(_nodeBalances, [](auto& _a) { return _a.second == Int(0); });
+
+	return transfers;
+}
+
+
 vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int _amount, map<Node, map<Node, Int>> _usedEdges)
 {
 	vector<Edge> transfers;
 
 	map<Address, Int> nodeBalances;
 	nodeBalances[_source] = _amount;
-	while (true)
-	{
-		if (
-			nodeBalances.size() == 0 ||
-			(nodeBalances.size() == 1 && nodeBalances.begin()->first == _sink)
-		)
-			break;
+	while (
+		!nodeBalances.empty() &&
+		(nodeBalances.size() > 1 || nodeBalances.begin()->first != _sink)
+	)
+		transfers += extractNextTransfers(_usedEdges, nodeBalances);
 
-		auto [node, amount] = *nodeBalances.begin();
-		nodeBalances.erase(node);
-
-		for (auto& edge: _usedEdges[node])
-		{
-			Node const& intermediate = edge.first;
-			for (auto& [toNode, capacity]: _usedEdges[intermediate])
-			{
-				if (capacity == Int(0))
-					continue;
-
-				auto const& [from, token] = std::get<tuple<Address, Address>>(intermediate);
-				Address to = std::get<Address>(toNode);
-				// TOOD the JS code mentions that the same token can be transacted
-				// between the same addresses multiple times. This would be a problem here.
-				Int transferAmount = min(amount, capacity);
-				if (transferAmount == Int(0))
-					continue;
-
-				transfers.push_back(Edge{from, to, token, transferAmount});
-				amount -= transferAmount;
-				capacity -= transferAmount;
-				nodeBalances[to] += transferAmount;
-			}
-			for (auto it = _usedEdges[intermediate].begin(); it != _usedEdges[intermediate].end();)
-				if (it->second == Int(0))
-					it = _usedEdges[intermediate].erase(it);
-				else
-					++it;
-		}
-	}
 	return transfers;
 }
 
