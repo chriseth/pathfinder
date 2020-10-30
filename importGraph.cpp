@@ -12,19 +12,19 @@
 using namespace std;
 using json = nlohmann::json;
 
-DB importGraph(char const* _file)
+DB importGraph(string const& _file)
 {
+	ifstream graph(_file);
+	json safes;
+	graph >> safes;
+	graph.close();
+
 	DB db;
 
-	ifstream graph(_file);
-
-	string line;
-	while (getline(graph, line))
+	for (json const& safe: safes)
 	{
-		json data = json::parse(line);
-
-		Safe s{Address(string(data["id"])), {}};
-		for (auto const& balance: data["balances"])
+		Safe s{Address(string(safe["id"])), {}};
+		for (auto const& balance: safe["balances"])
 		{
 			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"])};
 			db.tokens.insert(t);
@@ -32,7 +32,7 @@ DB importGraph(char const* _file)
 		}
 		db.safes.insert(move(s));
 
-		for (auto const& connections: {data["outgoing"], data["incoming"]})
+		for (auto const& connections: {safe["outgoing"], safe["incoming"]})
 			for (auto const& connection: connections)
 				db.connections.emplace(Connection{
 					Address(connection["canSendToAddress"]),
@@ -40,6 +40,7 @@ DB importGraph(char const* _file)
 					Int(string(connection["limit"]))
 				});
 	}
+	cout << "Imported " << db.safes.size() << " safes." << endl;
 
 	return db;
 }
@@ -108,7 +109,7 @@ void edgeSetToJson(set<Edge> const& _edges, char const* _file)
 
 
 
-set<Edge> importEdges(char const* _file)
+set<Edge> importEdgesJson(string const& _file)
 {
 	ifstream f(_file);
 	json edgesJson;
@@ -211,7 +212,7 @@ size_t indexOf(vector<Address> const& _sortedAddresses, Address const& _address)
 	return size_t(it - _sortedAddresses.begin());
 }
 
-void edgeSetToBinary(set<Edge> const& _edges, char const* _file)
+void edgeSetToBinary(set<Edge> const& _edges, string const& _file)
 {
 	vector<Address> addresses = sortedUniqueAddresses(_edges);
 	require(addresses.size() < numeric_limits<uint16_t>::max());
@@ -235,7 +236,7 @@ void edgeSetToBinary(set<Edge> const& _edges, char const* _file)
 	f.close();
 }
 
-set<Edge> importEdgesBinary(char const* _file)
+set<Edge> importEdgesBinary(string const& _file)
 {
 	ifstream f(_file);
 	set<Edge> edges = importEdgesBinary(f);

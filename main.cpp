@@ -9,10 +9,6 @@
 using namespace std;
 using json = nlohmann::json;
 
-//	DB db = importGraph(argv[1]);
-//	auto edges = findEdgesInGraphData(db);
-//	edgeSetToJson(edges, "edges.json");
-
 set<Edge> edges;
 
 extern "C" {
@@ -56,35 +52,21 @@ char const* flow(char const* _input)
 	return retVal.c_str();
 }
 
-int main(int argc, char const** argv)
+void computeFlow(
+	Address const& _source,
+	Address const& _sink,
+	Int const& _value,
+	string const& _edgesDat
+)
 {
-	if (argc == 4 && argv[1] == string("--export-binary"))
-	{
-		DB db = importGraph(argv[2]);
-		auto edges = findEdgesInGraphData(db);
-		edgeSetToBinary(edges, argv[3]);
-		exit(0);
-	}
-
-	if (argc != 5)
-	{
-		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.json>\n";
-		exit(1);
-	}
-
-	Address source = Address(string(argv[1]));
-	Address sink = Address(string(argv[2]));
-	Int value = Int(string(argv[3]));
-
 	set<Edge> edges;
-	string fileName = argv[4];
-	if (fileName.size() >= 4 && fileName.substr(fileName.size() - 4) == ".dat")
-		edges = importEdgesBinary(argv[4]);
+	if (_edgesDat.size() >= 4 && _edgesDat.substr(_edgesDat.size() - 4) == ".dat")
+		edges = importEdgesBinary(_edgesDat);
 	else
-		edges = importEdges(argv[4]);
+		edges = importEdgesJson(_edgesDat);
 	//cout << "Edges: " << edges.size() << endl;
 
-	auto [flow, transfers] = computeFlow(source, sink, edges, value);
+	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value);
 //	cout << "Flow: " << flow << endl;
 //	cout << "Transfers: " << endl;
 //	for (Edge const& edge: transfers)
@@ -104,4 +86,34 @@ int main(int argc, char const** argv)
 		{"maxFlowValue", to_string(flow)},
 		{"transferSteps", move(transfersJson)}
 	} << endl;
+}
+
+
+void importDB(string const& _safesJson, string const& _edgesDat)
+{
+	edgeSetToBinary(
+		findEdgesInGraphData(importGraph(_safesJson)),
+		_edgesDat
+	);
+}
+
+int main(int argc, char const** argv)
+{
+	if (argc == 4 && argv[1] == string{"--importDB"})
+		importDB(argv[2], argv[3]);
+	else if (
+		(argc == 6 && argv[1] == string{"--flow"}) ||
+		(argc == 5 && string(argv[1]).substr(0, 2) != "--")
+	)
+		computeFlow(Address(string(argv[1])), Address(string(argv[2])), Int(string(argv[3])), argv[4]);
+	else
+	{
+		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.dat>" << endl;
+		cerr << "Options: " << endl;
+		cerr << "  [--flow] <from> <to> <value> <edges.dat>    Compute max flow up to <value> and output transfer steps in json." << endl;
+		cerr << "  --importDB <safes.json> <edges.dat>         Import safes with trust edges and generate transfer limit graph." << endl;
+		cerr << "  [--help]                                    This help screen." << endl;
+		return 1;
+	}
+	return 0;
 }
