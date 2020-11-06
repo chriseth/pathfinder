@@ -20,12 +20,15 @@ small {
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-block;
+  vertical-align: middle;
 }
 </style>
 </head>
 <body>
 <h1>Pathfinder</h1>
-<p>Compute max transfer in CirclesUBI graph</p>
+<p>Compute multi-hop transfers in the CirclesUBI graph.<br/>
+The computation is done locally, only usernames and avatars are queried from the database.<br/>
+The trust graph is updated at irregular intervals, so the information might be out of date.</p>
 <p>Number of edges in the graph: <span id="edgeCount">loading...</span></p>
 <p>
 <div class="container" style="flex-direction: column;">
@@ -188,7 +191,13 @@ window.onload = function() {
 };
 document.getElementById("compute").onclick = function() {
     let from = document.getElementById("from").value;
+    if (!from.match(/0x[0-9a-fA-F]{40}/)) {
+        from = document.querySelector('#fromSuggestion .address').innerText;
+    }
     let to = document.getElementById("to").value;
+    if (!to.match(/0x[0-9a-fA-F]{40}/)) {
+        to = document.querySelector('#toSuggestion .address').innerText;
+    }
     let value = document.getElementById("value").value;
     if (value == 0) {
         value = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
