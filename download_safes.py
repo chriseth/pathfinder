@@ -12,15 +12,16 @@ query="""{
 
 API='https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph'
 
-skip = 0
-count = 200
+lastID = 0
+count = 1000
 safes = []
 while True:
-    print(skip)
-    result = requests.post(API, data='{"query":"{ safes( orderBy: id, first: %d, skip: %d ) %s }"}' % (count, skip, query)).json()
+    print("ID: %s" % lastID)
+    result = requests.post(API, data='{"query":"{ safes( orderBy: id, first: %d, where: { id_gt: \\"%s\\" } ) %s }"}' % (count, lastID, query)).json()
     if 'data' not in result or 'safes' not in result['data'] or len(result['data']['safes']) == 0:
         break
+    print("Got %d safes..." % len(result['data']['safes']))
     safes += result['data']['safes']
-    skip += count
+    lastID = result['data']['safes'][-1]['id']
 
 json.dump(safes, open('safes.json', 'w'))
