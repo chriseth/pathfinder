@@ -23,6 +23,7 @@ small {
   vertical-align: middle;
 }
 </style>
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
 <h1>Pathfinder</h1>
@@ -44,7 +45,8 @@ The trust graph is updated at irregular intervals, so the information might be o
 </div>
 <button id="compute">compute</button>
 <p>Value: <span id="flow">?</span></p>
-<p>Steps:</p>
+<p>Transfers:</p>
+<div><div id="graph" style="width: 100%; height: 300px;"></div></div>
 <div id="steps" class="container" style="flex-direction: column;"/>
 <script src="./emscripten_build/pathfinder.js"></script>
 <script type="text/javascript" language="javascript">
@@ -130,7 +132,7 @@ let completeUserInfo = function() {
     }
 };
 
-let fillUsernames = function(addresses) {
+let fillUsernames = function(addresses, callback) {
     var req = new XMLHttpRequest();
     let url = CirclesAPI + 'users/?';
     for (addr of addresses) {
@@ -143,6 +145,7 @@ let fillUsernames = function(addresses) {
                 userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
             completeUserInfo();
+            callback();
         }
     };
     req.send(null);
@@ -182,6 +185,60 @@ let unformatValue = function(value) {
         right = right + '0'
     return left + right;
 };
+
+let drawGraph = function(steps) {
+    var nodes = {};
+    let labelFor = function(id) {
+        let user = userDB[id.toLowerCase()];
+        if (user && user.username)
+            return user.username;
+        else
+            return id.substr(0, 8);
+    }
+    let createNodeContents = function(id) {
+        let user = userDB[id.toLowerCase()];
+        let node = {id: id, label: labelFor(id)};
+        if (user && user.avatarUrl) {
+            node['shape'] = 'circularImage';
+            node['image'] = user.avatarUrl;
+        }
+        return node;
+    }
+    let createNode = function(id) {
+        nodes[id] = createNodeContents(id);
+    };
+    var nodes = {};
+    var edges = [];
+    for (step of steps) {
+        let tokenUser = tokenDB[step.token.toLowerCase()];
+        let label = labelFor(tokenUser || step.token);
+        createNode(step.from);
+        createNode(step.to);
+        edges.push({
+            from: step.from,
+            to: step.to,
+            value: step.value,
+            label: formatValue(step.value) + " - " + label,
+            arrows: "to",
+            font: {align: "top"}
+        })
+    }
+    let firstNode = steps[0].from;
+    let lastNode = steps[steps.length - 1].to;
+    console.log(nodes);
+    nodes = new vis.DataSet(Object.values(nodes));
+    edges = new vis.DataSet(edges);
+    console.log({nodes: Object.values(nodes), edges: edges})
+    var network = new vis.Network(
+        document.getElementById('graph'),
+        {nodes: nodes, edges: edges},
+        {}
+    );
+    network.on('afterDrawing', function() {
+        let data = [{id: firstNode, x: -800, y:0}, {id:lastNode, x:800, y:0}];
+        nodes.update(data);
+    });
+}
 
 window.onload = function() {
     loadEdges();
@@ -224,7 +281,9 @@ document.getElementById("compute").onclick = function() {
         addressesToQuery = addressesToQuery.concat([step.from, step.to]);
         tokensToQuery.push(step.token)
     }
-    fillUsernames(addressesToQuery);
+    fillUsernames(addressesToQuery, function() {
+        drawGraph(data.transfers);
+    });
     translateTokens(tokensToQuery);
 };
 </script>
