@@ -1,0 +1,43 @@
+name: Edges
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron:  '7 */2 * * *'
+
+jobs:
+  updateEdges:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: mkdir build; cd build; cmake ..; make
+      - name: Download safes
+        run: ./download_safes.py
+      - name: Convert to binary
+        run: |
+          ./build/pathfinder --importDB safes.json edges.dat
+          cp edges.dat /tmp/
+      - name: Push to gh-pages
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+        run: |
+          git config --local user.email "chris@ethereum.org"
+          git config --local user.name "chriseth_automation"
+          git remote set-url origin "$(git config --get remote.origin.url | sed 's#http.*com/#git@github.com:#g')"
+          eval `ssh-agent -t 60 -s`
+          ssh-add - <<< "${{ secrets.DEPLOY_KEY }}"
+          mkdir -p ~/.ssh/
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          git fetch
+          git checkout -B gh-pages origin/master
+          git clean -f -d
+          git checkout origin/gh-pages -- emscripten_build/pathfinder.js
+          mv /tmp/edges.dat ./
+          git add edges.dat emscripten_build/pathfinder.js
+          git commit -m "Add edges and binary."
+
+          git push -f origin gh-pages
+          ssh-agent -k
