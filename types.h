@@ -46,6 +46,7 @@ struct Int
 			data[2] == _other.data[2] &&
 			data[3] == _other.data[3];
 	}
+	bool operator!=(Int const& _other) const { return !(*this == _other); }
 	bool operator>=(Int const& _other) const { return !(*this < _other); }
 	bool operator<=(Int const& _other) const { return !(*this > _other); }
 
