@@ -46,6 +46,7 @@ private:
 	void write(Safe const& _safe);
 	void write(Token const& _token);
 	void write(Connection const& _connection);
+	void write(Edge const& _edge);
 
 	void writeAddresses(DB const& _db);
 	void writeAddresses(std::set<Edge> const& _edges);

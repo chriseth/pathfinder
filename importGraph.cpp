@@ -3,6 +3,7 @@
 #include "exceptions.h"
 #include "encoding.h"
 #include "binaryExporter.h"
+#include "binaryImporter.h"
 #include "dbUpdates.h"
 
 #include "json.hpp"
@@ -15,7 +16,7 @@
 using namespace std;
 using json = nlohmann::json;
 
-DB importGraph(string const& _file)
+DB importFromTheGraph(string const& _file)
 {
 	ifstream graph(_file);
 	json safes;
@@ -153,16 +154,6 @@ set<Edge> importEdgesJson(string const& _file)
 }
 
 
-Int readCompactInt(istream& _stream)
-{
-	int bytes = uint8_t(_stream.get());
-	require(bytes <= 32 && bytes > 0);
-	Int v;
-	for (int i = bytes - 1; i >= 0; --i)
-		v.data[i / 8] |= uint64_t(uint8_t(_stream.get())) << ((i * 8) % 64);
-	return v;
-}
-
 void edgeSetToBinary(set<Edge> const& _edges, string const& _file)
 {
 	BinaryExporter(_file).write(_edges);
@@ -171,38 +162,10 @@ void edgeSetToBinary(set<Edge> const& _edges, string const& _file)
 set<Edge> importEdgesBinary(string const& _file)
 {
 	ifstream f(_file);
-	set<Edge> edges = importEdgesBinary(f);
-	f.close();
-	return edges;
+	return importEdgesBinary(f);
 }
 
-set<Edge> importEdgesBinary(istream& _stream)
+set<Edge> importEdgesBinary(istream& _file)
 {
-	vector<Address> addresses;
-	set<Edge> edges;
-
-	uint64_t numAddresses{};
-	_stream >> BigEndian<4>(numAddresses);
-	for (size_t i = 0; i < numAddresses; i++)
-	{
-		Address address;
-		_stream.read(reinterpret_cast<char*>(&(address.address[0])), 20);
-		addresses.emplace_back(move(address));
-	}
-
-	while (_stream.peek() != EOF)
-	{
-		Edge edge;
-		uint64_t index{};
-		_stream >> BigEndian<4>(index);
-		edge.from = addresses.at(index);
-		_stream >> BigEndian<4>(index);
-		edge.to = addresses.at(index);
-		_stream >> BigEndian<4>(index);
-		edge.token = addresses.at(index);
-		edge.capacity = readCompactInt(_stream);
-		edges.insert(edge);
-	}
-
-	return edges;
+	return BinaryImporter(_file).readEdgeSet();
 }

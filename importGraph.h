@@ -5,7 +5,7 @@
 #include <istream>
 
 
-DB importGraph(std::string const& _file);
+DB importFromTheGraph(std::string const& _file);
 std::set<Edge> findEdgesInGraphData(DB const& _db);
 
 void edgeSetToJson(std::set<Edge> const& _edges, char const* _file);

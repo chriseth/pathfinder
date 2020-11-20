@@ -25,14 +25,7 @@ void BinaryExporter::write(set<Edge> const& _edges)
 	writeAddresses(_edges);
 
 	cout << "Exporting " << _edges.size() << " edges and " << m_addresses.size() << " unique addresses." << endl;
-
-	for (Edge const& edge: _edges)
-	{
-		write(edge.from);
-		write(edge.to);
-		write(edge.token);
-		write(edge.capacity);
-	}
+	write(_edges);
 }
 
 
@@ -66,6 +59,7 @@ void BinaryExporter::write(Int const& _v)
 void BinaryExporter::write(Safe const& _safe)
 {
 	write(_safe.address);
+	write(_safe.tokenAddress);
 	write(_safe.balances);
 }
 
@@ -73,6 +67,7 @@ void BinaryExporter::write(Token const& _token)
 {
 	write(_token.address);
 	write(_token.safeAddress);
+	write(_token.totalSupply);
 }
 
 void BinaryExporter::write(Connection const& _connection)
@@ -80,6 +75,15 @@ void BinaryExporter::write(Connection const& _connection)
 	write(_connection.canSendToAddress);
 	write(_connection.userAddress);
 	write(_connection.limit);
+	write(size_t(_connection.limitPercentage));
+}
+
+void BinaryExporter::write(Edge const& _edge)
+{
+	write(_edge.from);
+	write(_edge.to);
+	write(_edge.token);
+	write(_edge.capacity);
 }
 
 void BinaryExporter::writeAddresses(DB const& _db)

@@ -100,7 +100,7 @@ void computeFlow(
 void importDB(string const& _safesJson, string const& _edgesDat)
 {
 	edgeSetToBinary(
-		findEdgesInGraphData(importGraph(_safesJson)),
+		findEdgesInGraphData(importFromTheGraph(_safesJson)),
 		_edgesDat
 	);
 }
