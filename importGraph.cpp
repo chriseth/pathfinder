@@ -39,7 +39,8 @@ DB importGraph(string const& _file)
 				db.connections.emplace(Connection{
 					Address(connection["canSendToAddress"]),
 					Address(connection["userAddress"]),
-					Int(string(connection["limit"]))
+					Int(string(connection["limit"])),
+					connection["limitPercentage"]
 				});
 	}
 	cout << "Imported " << db.safes.size() << " safes." << endl;
@@ -58,7 +59,8 @@ set<Edge> findEdgesInGraphData(DB const& _db)
 			extendedConnections.insert(Connection{
 				_db.token(tokenAddress).safeAddress,
 				safe.address,
-				balance
+				balance,
+				100 // fake percentage
 			});
 
 	set<Edge> edges;
@@ -73,7 +75,7 @@ set<Edge> findEdgesInGraphData(DB const& _db)
 		{
 			Token const& token = _db.token(tokenAddress);
 			// TODO can there be mulitple such connections?
-			auto it = extendedConnections.find(Connection{connection.canSendToAddress, token.safeAddress, {}});
+			auto it = extendedConnections.find(Connection{connection.canSendToAddress, token.safeAddress, {}, {}});
 			if (it == extendedConnections.end())
 				continue;
 			Int capacity = min(balance, it->limit);

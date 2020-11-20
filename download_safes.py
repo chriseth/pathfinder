@@ -5,8 +5,8 @@ import json
 
 query="""{
     id
-    outgoing { limit canSendToAddress userAddress }
-    incoming { limit canSendToAddress userAddress }
+    outgoing { limit limitPercentage canSendToAddress userAddress }
+    incoming { limit limitPercentage canSendToAddress userAddress }
     balances { amount token { id owner { id } } }
 }""".replace('\n', ' ')
 

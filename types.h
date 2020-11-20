@@ -91,6 +91,7 @@ struct Connection
 	Address canSendToAddress;
 	Address userAddress;
 	Int limit;
+	int limitPercentage;
 
 	bool operator<(Connection const& _other) const
 	{
