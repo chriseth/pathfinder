@@ -215,21 +215,21 @@ size_t indexOf(vector<Address> const& _sortedAddresses, Address const& _address)
 void edgeSetToBinary(set<Edge> const& _edges, string const& _file)
 {
 	vector<Address> addresses = sortedUniqueAddresses(_edges);
-	require(addresses.size() < numeric_limits<uint16_t>::max());
+	require(addresses.size() < numeric_limits<uint32_t>::max());
 
 	cout << "Exporting " << _edges.size() << " edges and " << addresses.size() << " addresses." << endl;
 
 	ofstream f(_file);
-	f << BigEndian<2>(addresses.size());
+	f << BigEndian<4>(addresses.size());
 	for (Address const& address: addresses)
 		f.write(reinterpret_cast<char const*>(&(address.address[0])), 20);
 
 	for (Edge const& edge: _edges)
 	{
 		f <<
-			BigEndian<2>(indexOf(addresses, edge.from)) <<
-			BigEndian<2>(indexOf(addresses, edge.to)) <<
-			BigEndian<2>(indexOf(addresses, edge.token));
+			BigEndian<4>(indexOf(addresses, edge.from)) <<
+			BigEndian<4>(indexOf(addresses, edge.to)) <<
+			BigEndian<4>(indexOf(addresses, edge.token));
 		writeCompactInt(f, edge.capacity);
 	}
 
@@ -250,7 +250,7 @@ set<Edge> importEdgesBinary(istream& _stream)
 	set<Edge> edges;
 
 	uint64_t numAddresses{};
-	_stream >> BigEndian<2>(numAddresses);
+	_stream >> BigEndian<4>(numAddresses);
 	for (size_t i = 0; i < numAddresses; i++)
 	{
 		Address address;
@@ -262,11 +262,11 @@ set<Edge> importEdgesBinary(istream& _stream)
 	{
 		Edge edge;
 		uint64_t index{};
-		_stream >> BigEndian<2>(index);
+		_stream >> BigEndian<4>(index);
 		edge.from = addresses.at(index);
-		_stream >> BigEndian<2>(index);
+		_stream >> BigEndian<4>(index);
 		edge.to = addresses.at(index);
-		_stream >> BigEndian<2>(index);
+		_stream >> BigEndian<4>(index);
 		edge.token = addresses.at(index);
 		edge.capacity = readCompactInt(_stream);
 		edges.insert(edge);
