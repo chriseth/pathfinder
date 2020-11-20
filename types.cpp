@@ -59,6 +59,65 @@ Int Int::operator-() const
 	return x + Int(1);
 }
 
+Int Int::half() const
+{
+	Int h;
+	for (size_t i = 0; i < 4; i++)
+	{
+		if (i > 0)
+			h.data[i - 1] |= (data[i] & 1) << 63;
+		h.data[i] = data[i] >> 1;
+	}
+	return h;
+}
+
+Int Int::timesTwo() const
+{
+	Int result;
+	for (size_t i = 0; i < 4; i++)
+	{
+		result.data[i] = data[i] << 1;
+		if (i > 0)
+			result.data[i] |= data[i - 1] >> 63;
+	}
+	return result;
+}
+
+Int Int::operator*(uint32_t _other) const
+{
+	Int result;
+	Int shifted = *this;
+	while (_other > 0)
+	{
+		if (_other & 1)
+			result += shifted;
+		shifted = shifted.timesTwo();
+		_other >>= 1;
+	}
+	return result;
+}
+
+Int Int::operator/(uint32_t _other) const
+{
+	require(_other != 0);
+	Int n = *this;
+	Int quotient{};
+	uint64_t remainder = 0;
+
+	for (int i = 255; i >= 0; i--)
+	{
+		remainder <<= 1;
+		if (n.data[i / 64] & (uint64_t(1) << (i % 64)))
+			remainder++;
+		if (remainder >= _other)
+		{
+			remainder -= _other;
+			quotient.data[i / 64] |= uint64_t(1) << (i % 64);
+		}
+	}
+	return quotient;
+}
+
 Int Int::max()
 {
 	Int x;
@@ -160,4 +219,25 @@ string to_string(Address const& _address)
 			ret += static_cast<char>(tolower(addressCharacter));
 	}
 	return ret;
+}
+
+Int Safe::balance(Address const& _token) const
+{
+	auto it = balances.find(_token);
+	return it == balances.end() ? Int{0} : it->second;
+}
+
+
+Safe const& DB::safe(Address const& _address) const
+{
+	auto it = safes.find(Safe{_address, {}, {}});
+	require(it != safes.end());
+	return *it;
+}
+
+Token const& DB::token(Address const& _address) const
+{
+	auto it = tokens.find(Token{_address, {}, {}});
+	require(it != tokens.end());
+	return *it;
 }

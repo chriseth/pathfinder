@@ -81,6 +81,8 @@ set(
 	binaryExporter.cpp
 	importGraph.h
 	importGraph.cpp
+	dbUpdates.h
+	dbUpdates.cpp
 	flow.h
 	flow.cpp
 	keccak.h

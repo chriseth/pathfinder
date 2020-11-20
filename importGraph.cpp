@@ -3,6 +3,7 @@
 #include "exceptions.h"
 #include "encoding.h"
 #include "binaryExporter.h"
+#include "dbUpdates.h"
 
 #include "json.hpp"
 
@@ -25,12 +26,17 @@ DB importGraph(string const& _file)
 
 	for (json const& safe: safes)
 	{
-		Safe s{Address(string(safe["id"])), {}};
+		Safe s{Address(string(safe["id"])), {}, {}};
 		for (auto const& balance: safe["balances"])
 		{
-			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"])};
-			db.tokens.insert(t);
-			s.balances[t.address] = Int(string(balance["amount"]));
+			Int balanceAmount = Int(string(balance["amount"]));
+			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"]), {}};
+			if (t.safeAddress == s.address)
+				s.tokenAddress = t.address;
+			// Insert and update total supply.
+			// const_cast is needed because set iterators are const.
+			const_cast<Int&>(db.tokens.insert(t).first->totalSupply) += balanceAmount;
+			s.balances[t.address] = balanceAmount;
 		}
 		db.safes.insert(move(s));
 
@@ -40,9 +46,12 @@ DB importGraph(string const& _file)
 					Address(connection["canSendToAddress"]),
 					Address(connection["userAddress"]),
 					Int(string(connection["limit"])),
-					connection["limitPercentage"]
+					uint32_t(std::stoi(string(connection["limitPercentage"])))
 				});
 	}
+	cout << "Updating limits..." << endl;
+	for (Connection const& conn: db.connections)
+		checkLimit(db, const_cast<Connection&>(conn));
 	cout << "Imported " << db.safes.size() << " safes." << endl;
 
 	return db;
@@ -68,6 +77,7 @@ set<Edge> findEdgesInGraphData(DB const& _db)
 	for (Connection const& connection: extendedConnections)
 	{
 		Safe const* senderSafe = _db.safeMaybe(connection.userAddress);
+		// TODO self-edges are ignored, so we can probably already filter them earlier.
 		if (!senderSafe || senderSafe->address == connection.canSendToAddress)
 			continue;
 
@@ -92,6 +102,7 @@ set<Edge> findEdgesInGraphData(DB const& _db)
 		}
 	}
 
+	cout << "Computed edges " << endl;
 	return edges;
 }
 

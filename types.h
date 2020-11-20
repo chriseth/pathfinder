@@ -30,6 +30,11 @@ struct Int
 		return (*this) += -_other;
 	}
 	Int operator-(Int const& _other) const { return (*this) + (-_other); }
+	Int operator*(uint32_t _other) const;
+	Int operator/(uint32_t _other) const;
+
+	Int half() const;
+	Int timesTwo() const;
 
 	bool operator<(Int const& _other) const
 	{
@@ -73,6 +78,7 @@ struct Token
 {
 	Address address;
 	Address safeAddress;
+	Int totalSupply;
 
 	bool operator<(Token const& _other) const { return address < _other.address; }
 };
@@ -80,10 +86,12 @@ struct Token
 struct Safe
 {
 	Address address;
+	Address tokenAddress;
 	/// token address to balance
 	std::map<Address, Int> balances;
 
 	bool operator<(Safe const& _other) const { return address < _other.address; }
+	Int balance(Address const& _token) const;
 };
 
 struct Connection
@@ -91,7 +99,7 @@ struct Connection
 	Address canSendToAddress;
 	Address userAddress;
 	Int limit;
-	int limitPercentage;
+	uint32_t limitPercentage;
 
 	bool operator<(Connection const& _other) const
 	{
@@ -122,13 +130,12 @@ struct DB
 	std::set<Token> tokens;
 	std::set<Connection> connections;
 
-	// TODO assert they exist
-	Safe const& safe(Address const& _address) const { return *safes.find(Safe{_address, {}}); }
-	Token const& token(Address const& _address) const { return *tokens.find(Token{_address, {}}); }
+	Safe const& safe(Address const& _address) const;
+	Token const& token(Address const& _address) const;
 
 	Safe const* safeMaybe(Address const& _address) const
 	{
-		auto it = safes.find(Safe{_address, {}});
+		auto it = safes.find(Safe{_address, {}, {}});
 		return it == safes.end() ? nullptr : &(*it);
 	}
 };
