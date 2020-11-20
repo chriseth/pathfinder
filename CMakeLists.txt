@@ -76,6 +76,9 @@ set(
 	types.h
 	exceptions.h
 	types.cpp
+	encoding.h
+	binaryExporter.h
+	binaryExporter.cpp
 	importGraph.h
 	importGraph.cpp
 	flow.h

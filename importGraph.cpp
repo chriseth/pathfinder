@@ -1,6 +1,8 @@
 #include "importGraph.h"
 
 #include "exceptions.h"
+#include "encoding.h"
+#include "binaryExporter.h"
 
 #include "json.hpp"
 
@@ -138,51 +140,6 @@ set<Edge> importEdgesJson(string const& _file)
 }
 
 
-template <size_t _bytes>
-struct BigEndian
-{
-	variant<uint64_t, uint64_t*> value;
-	BigEndian(uint64_t const& _value): value(_value) {}
-	BigEndian(uint64_t& _value): value(&_value) {}
-	friend ostream& operator<<(ostream& _os, BigEndian const& _value)
-	{
-		for (size_t i = 0; i < _bytes; ++i)
-			_os.put(char((get<uint64_t>(_value.value) >> ((_bytes - 1 - i) * 8)) & 0xff));
-		return _os;
-	}
-	friend istream& operator>>(istream& _is, BigEndian const& _value)
-	{
-		uint64_t& v = *get<uint64_t*>(_value.value);
-		v = 0;
-		for (size_t i = 0; i < _bytes; ++i)
-			v |= uint64_t(uint8_t(_is.get())) << ((_bytes - i - 1) * 8);
-		return _is;
-	}
-};
-
-template <size_t _bytes>
-void writeBigEndian(ofstream& _stream, uint64_t const& _value)
-{
-	for (size_t i = 0; i < _bytes; ++i)
-		_stream.put(uint8_t((_value >> ((_bytes - 1 - i) * 8)) & 0xff));
-}
-
-void writeCompactInt(ostream& _stream, Int const& _v)
-{
-	bool wroteLength = false;
-	for (int i = 31; i >= 0; --i)
-	{
-		uint64_t data = (_v.data[i / 8] >> ((i * 8) % 64)) & 0xff;
-		if (!wroteLength && (i == 0 || data != 0))
-		{
-			_stream.put(char(size_t(i + 1)));
-			wroteLength = true;
-		}
-		if (wroteLength)
-			_stream.put(char(data));
-	}
-}
-
 Int readCompactInt(istream& _stream)
 {
 	int bytes = uint8_t(_stream.get());
@@ -193,47 +150,9 @@ Int readCompactInt(istream& _stream)
 	return v;
 }
 
-vector<Address> sortedUniqueAddresses(set<Edge> const& _edges)
-{
-	set<Address> addresses;
-	for (Edge const& edge: _edges)
-	{
-		addresses.insert(edge.from);
-		addresses.insert(edge.to);
-		addresses.insert(edge.token);
-	}
-	return vector<Address>{addresses.begin(), addresses.end()};
-}
-
-size_t indexOf(vector<Address> const& _sortedAddresses, Address const& _address)
-{
-	auto it = lower_bound(_sortedAddresses.begin(), _sortedAddresses.end(), _address);
-	require(it != _sortedAddresses.end());
-	return size_t(it - _sortedAddresses.begin());
-}
-
 void edgeSetToBinary(set<Edge> const& _edges, string const& _file)
 {
-	vector<Address> addresses = sortedUniqueAddresses(_edges);
-	require(addresses.size() < numeric_limits<uint32_t>::max());
-
-	cout << "Exporting " << _edges.size() << " edges and " << addresses.size() << " addresses." << endl;
-
-	ofstream f(_file);
-	f << BigEndian<4>(addresses.size());
-	for (Address const& address: addresses)
-		f.write(reinterpret_cast<char const*>(&(address.address[0])), 20);
-
-	for (Edge const& edge: _edges)
-	{
-		f <<
-			BigEndian<4>(indexOf(addresses, edge.from)) <<
-			BigEndian<4>(indexOf(addresses, edge.to)) <<
-			BigEndian<4>(indexOf(addresses, edge.token));
-		writeCompactInt(f, edge.capacity);
-	}
-
-	f.close();
+	BinaryExporter(_file).write(_edges);
 }
 
 set<Edge> importEdgesBinary(string const& _file)

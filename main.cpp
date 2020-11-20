@@ -1,6 +1,7 @@
 #include "importGraph.h"
 #include "flow.h"
 #include "exceptions.h"
+#include "binaryExporter.h"
 
 #include "json.hpp"
 
