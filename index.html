@@ -235,7 +235,8 @@ let drawGraph = function(steps) {
         {}
     );
     network.on('afterDrawing', function() {
-        let data = [{id: firstNode, x: -800, y:0}, {id:lastNode, x:800, y:0}];
+        let x = window.innerWidth * .4;
+        let data = [{id: firstNode, x: -x, y:0}, {id:lastNode, x: x, y:0}];
         nodes.update(data);
     });
 }
