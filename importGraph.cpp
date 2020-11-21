@@ -52,7 +52,7 @@ DB importFromTheGraph(string const& _file)
 	}
 	cout << "Updating limits..." << endl;
 	for (Connection const& conn: db.connections)
-		checkLimit(db, const_cast<Connection&>(conn));
+		updateLimit(db, const_cast<Connection&>(conn));
 	cout << "Imported " << db.safes.size() << " safes." << endl;
 
 	return db;

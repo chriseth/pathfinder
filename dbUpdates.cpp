@@ -5,7 +5,7 @@
 
 using namespace std;
 
-void checkLimit(DB const& _db, Connection& _connection)
+void updateLimit(DB const& _db, Connection& _connection)
 {
 	// tokenOwner and src are always equal
 
@@ -22,15 +22,75 @@ void checkLimit(DB const& _db, Connection& _connection)
 		{
 			require(_connection.limitPercentage <= 100);
 			Int max = _db.token(receiverSafe.tokenAddress).totalSupply;
-			if (_connection.limitPercentage == 50)
-				max = max.half();
-			else if (_connection.limitPercentage == 0)
-				max = Int(0); // TODO remove connection altogether?
-			else
-				max = (max * _connection.limitPercentage) / 100;
+			max = (max * _connection.limitPercentage) / 100;
 			limit = max < receiverBalance ? Int(0) : max - receiverBalance;
 		}
 	}
 
 	_connection.limit = limit;
+}
+
+void updateLimit(DB& _db, Address const& _user, Address const& _canSendTo)
+{
+	auto it = _db.connections.find(Connection{_canSendTo, _user, {}, {}});
+	if (it != _db.connections.end())
+		updateLimit(_db, const_cast<Connection&>(*it));
+}
+
+
+void signup(DB& _db, Address const& _user, Address const& _token)
+{
+	// TODO balances empty at start?
+	_db.safes.insert(Safe{_user, _token, {}});
+	_db.tokens.insert(Token{_token, _user, Int{}});
+}
+
+void trust(DB& _db, Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
+{
+	_db.connections.erase(Connection{_canSendTo, _user, {}, {}});
+	if (_limitPercentage == 0)
+		return;
+
+	Connection c{_canSendTo, _user, Int{}, _limitPercentage};
+	updateLimit(_db, c);
+	_db.connections.insert(move(c));
+}
+
+void transfer(
+	DB& _db,
+	Address const& _token,
+	Address const& _from,
+	Address const& _to,
+	Int const& _value
+)
+{
+	// This is a generic ERC20 event and might be unrelated to the
+	// Circles system.
+	Token const* token = _db.tokenMaybe(_token);
+	if (!token || _value == Int{})
+		return;
+
+	const_cast<Safe&>(_db.safe(_to)).balances[_token] += _value;
+	if (_from == Address{})
+	{
+		require(_to == token->safeAddress);
+		const_cast<Token*>(token)->totalSupply += _value;
+		for (Connection const& connection: _db.connections)
+			if (connection.canSendToAddress == token->safeAddress)
+				updateLimit(_db, const_cast<Connection&>(connection));
+	}
+	else
+	{
+		Safe& senderSafe = const_cast<Safe&>(_db.safe(_from));
+		require(senderSafe.balances[_token] >= _value);
+		senderSafe.balances[_token] -= _value;
+	}
+	updateLimit(_db, token->safeAddress, _from);
+	updateLimit(_db, token->safeAddress, _to);
+
+	// Which edge changes does this cause?
+	//  - edges to a token's safe (balance change) - "extended connections"
+	//  - the edge of the connection (user -> canSendTo via token) (balance change)
+	//  - all limit changes
+	//    (especially this causes many edges to change)
 }

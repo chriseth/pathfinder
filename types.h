@@ -131,12 +131,13 @@ struct DB
 	std::set<Connection> connections;
 
 	Safe const& safe(Address const& _address) const;
-	Token const& token(Address const& _address) const;
-
 	Safe const* safeMaybe(Address const& _address) const
 	{
 		auto it = safes.find(Safe{_address, {}, {}});
 		return it == safes.end() ? nullptr : &(*it);
 	}
+
+	Token const& token(Address const& _address) const;
+	Token const* tokenMaybe(Address const& _address) const;
 };
 

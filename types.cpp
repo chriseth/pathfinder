@@ -241,3 +241,9 @@ Token const& DB::token(Address const& _address) const
 	require(it != tokens.end());
 	return *it;
 }
+
+Token const* DB::tokenMaybe(Address const& _address) const
+{
+	auto it = tokens.find(Token{_address, {}, {}});
+	return it == tokens.end() ? nullptr : &*it;
+}
