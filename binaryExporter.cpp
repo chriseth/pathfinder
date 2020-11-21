@@ -25,7 +25,9 @@ void BinaryExporter::write(set<Edge> const& _edges)
 	writeAddresses(_edges);
 
 	cout << "Exporting " << _edges.size() << " edges and " << m_addresses.size() << " unique addresses." << endl;
-	write(_edges);
+	write(_edges.size());
+	for (Edge const& edge: _edges)
+		write(edge);
 }
 
 

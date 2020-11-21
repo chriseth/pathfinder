@@ -111,5 +111,8 @@ void BinaryImporter::readAddresses()
 {
 	size_t length = readSize();
 	for (size_t i = 0; i < length; ++i)
-		m_addresses.emplace_back(readAddress());
+	{
+		m_addresses.push_back({});
+		m_input.read(reinterpret_cast<char*>(&(m_addresses.back().address[0])), 20);
+	}
 }

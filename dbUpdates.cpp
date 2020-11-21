@@ -28,6 +28,7 @@ void updateLimit(DB const& _db, Connection& _connection)
 	}
 
 	_connection.limit = limit;
+	cout << "Limit change: " << _connection.userAddress << " send to " << _connection.canSendToAddress << ": " << _connection.limit << " (" << _connection.limitPercentage << "%)" << endl;
 }
 
 void updateLimit(DB& _db, Address const& _user, Address const& _canSendTo)
@@ -40,6 +41,7 @@ void updateLimit(DB& _db, Address const& _user, Address const& _canSendTo)
 
 void signup(DB& _db, Address const& _user, Address const& _token)
 {
+	cout << "Signup: " << _user << " with token " << _token << endl;
 	// TODO balances empty at start?
 	_db.safes.insert(Safe{_user, _token, {}});
 	_db.tokens.insert(Token{_token, _user, Int{}});
@@ -47,6 +49,7 @@ void signup(DB& _db, Address const& _user, Address const& _token)
 
 void trust(DB& _db, Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
 {
+	cout << "Trust change: " << _user << " send to " << _canSendTo << ": " << _limitPercentage << "%" << endl;
 	_db.connections.erase(Connection{_canSendTo, _user, {}, {}});
 	if (_limitPercentage == 0)
 		return;
@@ -64,11 +67,16 @@ void transfer(
 	Int const& _value
 )
 {
+	cout << "Transfer: " << _value << ": " << _from << " -> " << _to << " [" << _token << "]" << endl;
 	// This is a generic ERC20 event and might be unrelated to the
 	// Circles system.
 	Token const* token = _db.tokenMaybe(_token);
 	if (!token || _value == Int{})
+	{
+		if (!token)
+			cout << "Token unknown." << endl;
 		return;
+	}
 
 	const_cast<Safe&>(_db.safe(_to)).balances[_token] += _value;
 	if (_from == Address{})

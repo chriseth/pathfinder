@@ -24,6 +24,7 @@ small {
 }
 </style>
 <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="https://cdn.ethers.io/lib/ethers-5.0.umd.min.js" type="application/javascript"></script>
 </head>
 <body>
 <h1>Pathfinder</h1>
@@ -85,6 +86,32 @@ let userByToken = function(token, callback) {
     }));
 }
 
+let emLoadDB = Module.cwrap("loadDB", 'number', ['array', 'number']);
+let emSignup = Module.cwrap("signup", null, ['string', 'string']);
+let emTrust = Module.cwrap("trust", null, ['string', 'string', 'number']);
+let emTransfer = Module.cwrap("signup", null, ['string', 'string', 'string', 'string']);
+let emEdgesFromDB = Module.cwrap("edgesFromDB", null, []);
+
+let loadDB = function() {
+    var req = new XMLHttpRequest();
+    req.open("GET", "db.dat", true);
+    req.responseType = "arraybuffer";
+    req.onload = function() {
+        if (req.response) {
+            let db = new Uint8Array(req.response);
+//            let safes = emLoadDB(db, db.length);
+            var ptr = Module._malloc(db.length);
+            var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, db.length);
+            heapBytes.set(new Uint8Array(db.buffer));
+            let numSafes = Module._loadDB(heapBytes.byteOffset, db.length);
+            Module._free(ptr);
+            console.log(`Loaded ${numSafes} safes.`)
+            emEdgesFromDB();
+        }
+    };
+    req.send(null);
+};
+
 let loadEdges = function() {
     var req = new XMLHttpRequest();
     req.open("GET", "edges.dat", true);
@@ -102,6 +129,56 @@ let loadEdges = function() {
     };
     req.send(null);
 };
+
+
+    const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
+    const hubAbi = [
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function balanceOf(address) view returns (uint)",
+        "function transfer(address to, uint amount)",
+        "function checkSendLimit(address tokenOwner, address src, address dest) view returns (uint256)",
+        "function limits(address,address) view returns (uint256)",
+        "event Signup(address indexed user, address token)",
+        "event OrganizationSignup(address indexed organization)",
+        "event Trust(address indexed canSendTo, address indexed user, uint256 limit)",
+        "event HubTransfer(address indexed from, address indexed to, uint256 amount)"
+    ];
+    const tokenAbi = [
+        "event Transfer(address indexed _from, address indexed _to, uint256 _value)",
+        "event Approval(address indexed _owner, address indexed _spender, uint256 _value)"
+    ];
+
+    const hubContract = new ethers.Contract("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543", hubAbi, provider);
+  
+let uintToAddress = function(value) {
+    if (value.length != 66 || value.substr(0, 26) != "0x000000000000000000000000")
+        throw("invalid address: " + value);
+    value = "0x" + value.substr(26)
+    return ethers.utils.getAddress(value);
+};
+
+let setupEventListener = async function() {
+    console.log("Block: " + await provider.getBlockNumber());
+    hubContract.on("Trust", (sendTo, user, limitPercentage) => {
+        console.log(`trust ${user} -> ${sendTo} (${limitPercentage}) `);
+        // TODO check that limitPercentage is actually a number.
+        emTrust(sendTo, user, limitPercentage - 0)
+    });
+    hubContract.on("Signup", (user, token) => {
+        console.log(`signup ${user} ${token}`);
+        emSignup(user, token);
+    });
+    provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, (log) => {
+        let value = log.data;
+        let token = log.address;
+        let from = uintToAddress(log.topics[1]);
+        let to = uintToAddress(log.topics[2]);
+        console.log(`Transfer ${from} -> ${to}: ${value} ${token}`);
+        emTransfer(token, from, to, value)
+    });
+};
+
 let setupSuggestions = function(x) {
     let inputBox = document.getElementById(x);
     inputBox.onkeyup = function() {
@@ -242,7 +319,9 @@ let drawGraph = function(steps) {
 }
 
 window.onload = function() {
-    loadEdges();
+    //loadEdges();
+    loadDB();
+    setupEventListener();
     for (x of ["from", "to"]) {
         setupSuggestions(x);
     }

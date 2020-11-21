@@ -2,6 +2,7 @@
 
 #include "exceptions.h"
 #include "keccak.h"
+#include "encoding.h"
 
 using namespace std;
 
@@ -24,13 +25,18 @@ Int::Int(uint64_t _value)
 
 Int::Int(string const& _decimal): Int(0)
 {
+	uint32_t radix = 10;
+	if (_decimal.size() >= 2 && _decimal[0] == '0' && _decimal['1'] == 'x')
+		radix = 16;
+
 	for (char c: _decimal)
 	{
-		require('0' <= c && c <= '9');
-		*this = timesTen(*this);
+		// TODO optimize for radix 10 and 16?
+		*this *= radix;
 
-		Int v(uint64_t(c - '0'));
-		*this += v;
+		if (radix == 10)
+			require('0' <= c && c <= '9');
+		*this += Int(fromHex(c));
 	}
 }
 
@@ -157,28 +163,6 @@ string to_string(Int _value)
 	}
 	require(_value == Int(0));
 	return result.empty() ? "0" : result;
-}
-
-uint8_t fromHex(char _c)
-{
-	if ('0' <= _c && _c <= '9')
-		return uint8_t(_c - '0');
-	else if ('a' <= _c && _c <= 'f')
-		return 10 + uint8_t(_c - 'a');
-	else if ('A' <= _c && _c <= 'F')
-		return 10 + uint8_t(_c - 'A');
-	else
-		require(false);
-	return {};
-}
-
-char toHex(uint8_t _c)
-{
-	require(_c <= 0x1f);
-	if (_c < 10)
-		return '0' + char(_c);
-	else
-		return 'a' + char(_c - 10);
 }
 
 Address::Address(string const& _hex)

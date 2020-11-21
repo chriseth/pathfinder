@@ -15,7 +15,7 @@ struct Int
 
 	Int(): Int(0) {}
 	explicit Int(uint64_t _value);
-	explicit Int(std::string const& _decimal);
+	explicit Int(std::string const& _value);
 
 	Int& operator+=(Int const& _other);
 	Int operator+(Int const& _other) const
@@ -31,7 +31,9 @@ struct Int
 	}
 	Int operator-(Int const& _other) const { return (*this) + (-_other); }
 	Int operator*(uint32_t _other) const;
+	Int& operator*=(uint32_t _other) { return *this = *this * _other; }
 	Int operator/(uint32_t _other) const;
+	Int& operator/=(uint32_t _other) { return *this = *this / _other; }
 
 	Int half() const;
 	Int timesTwo() const;

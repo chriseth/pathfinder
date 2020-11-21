@@ -1,5 +1,7 @@
 #pragma once
 
+#include "exceptions.h"
+
 #include <variant>
 #include <iostream>
 
@@ -27,3 +29,26 @@ struct BigEndian
 		return _is;
 	}
 };
+
+inline uint8_t fromHex(char _c)
+{
+	if ('0' <= _c && _c <= '9')
+		return uint8_t(_c - '0');
+	else if ('a' <= _c && _c <= 'f')
+		return 10 + uint8_t(_c - 'a');
+	else if ('A' <= _c && _c <= 'F')
+		return 10 + uint8_t(_c - 'A');
+	else
+		require(false);
+	return {};
+}
+
+inline char toHex(uint8_t _c)
+{
+	require(_c <= 0x1f);
+	if (_c < 10)
+		return '0' + char(_c);
+	else
+		return 'a' + char(_c - 10);
+}
+
