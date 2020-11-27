@@ -3,6 +3,8 @@
 import requests
 import json
 
+blockNumber =requests.get('https://blockscout.com/poa/xdai/api?module=block&action=eth_block_number').json()['result']
+
 query="""{
     id
     outgoing { limit limitPercentage canSendToAddress userAddress }
@@ -24,4 +26,4 @@ while True:
     safes += result['data']['safes']
     lastID = result['data']['safes'][-1]['id']
 
-json.dump(safes, open('safes.json', 'w'))
+json.dump({'blockNumber': blockNumber, 'safes': safes}, open('safes.json', 'w'))

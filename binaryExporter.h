@@ -5,14 +5,14 @@
 
 
 #include "types.h"
-
+#include "db.h"
 
 class BinaryExporter
 {
 public:
 	explicit BinaryExporter(std::string const& _file);
 
-	void write(DB const& _db);
+	void write(size_t _blockNumber, DB const& _db);
 	void write(std::set<Edge> const& _edges);
 
 private:

@@ -31,7 +31,12 @@ small {
 <p>Compute multi-hop transfers in the CirclesUBI graph.<br/>
 The computation is done locally, only usernames and avatars are queried from the database.<br/>
 The trust graph is updated at irregular intervals, so the information might be out of date.</p>
-<p>Number of edges in the graph: <span id="edgeCount">loading...</span></p>
+<p>
+Number of edges in the graph: <span id="edgeCount">loading...</span><br/>
+Latest hub event: <span id="hubEvent">loading...</span><br/>
+Latest transfer event: <span id="transferEvent">loading...</span><br/>
+<span id="status">loading...</span>
+</p>
 <p>
 <div class="container" style="flex-direction: column;">
 <div id="fromSelector" class="container">
@@ -89,73 +94,108 @@ let userByToken = function(token, callback) {
 let emLoadDB = Module.cwrap("loadDB", 'number', ['array', 'number']);
 let emSignup = Module.cwrap("signup", null, ['string', 'string']);
 let emTrust = Module.cwrap("trust", null, ['string', 'string', 'number']);
-let emTransfer = Module.cwrap("signup", null, ['string', 'string', 'string', 'string']);
-let emEdgesFromDB = Module.cwrap("edgesFromDB", null, []);
+let emTransfer = Module.cwrap("transfer", null, ['string', 'string', 'string', 'string']);
+let emEdgeCount = Module.cwrap("edgeCount", 'number', []);
+let emDelayEdgeUpdates = Module.cwrap("delayEdgeUpdates", null, []);
+let emPerformEdgeUpdates = Module.cwrap("performEdgeUpdates", null, []);
 
-let loadDB = function() {
-    var req = new XMLHttpRequest();
-    req.open("GET", "db.dat", true);
-    req.responseType = "arraybuffer";
-    req.onload = function() {
-        if (req.response) {
-            let db = new Uint8Array(req.response);
-//            let safes = emLoadDB(db, db.length);
-            var ptr = Module._malloc(db.length);
-            var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, db.length);
-            heapBytes.set(new Uint8Array(db.buffer));
-            let numSafes = Module._loadDB(heapBytes.byteOffset, db.length);
-            Module._free(ptr);
-            console.log(`Loaded ${numSafes} safes.`)
-            emEdgesFromDB();
-        }
-    };
-    req.send(null);
+let loadDB = async function() {
+    return new Promise((resolve, reject) => {
+        var req = new XMLHttpRequest();
+        req.open("GET", "db.dat", true);
+        req.responseType = "arraybuffer";
+        req.onload = function() {
+            if (req.response) {
+                let db = new Uint8Array(req.response);
+                //let safes = emLoadDB(db, db.length);
+                var ptr = Module._malloc(db.length);
+                var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, db.length);
+                heapBytes.set(new Uint8Array(db.buffer));
+                let latestblockNumber = Module._loadDB(heapBytes.byteOffset, db.length);
+                Module._free(ptr);
+                let edgeCount = emEdgeCount();
+                document.getElementById("edgeCount").innerText = edgeCount;
+                resolve(latestblockNumber);
+            }
+        };
+        req.send(null);
+    });
 };
 
-let loadEdges = function() {
-    var req = new XMLHttpRequest();
-    req.open("GET", "edges.dat", true);
-    req.responseType = "arraybuffer";
-    req.onload = function() {
-        if (req.response) {
-            let edges = new Uint8Array(req.response);
-            var ptr = Module._malloc(edges.length);
-            var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, edges.length);
-            heapBytes.set(new Uint8Array(edges.buffer));
-            let numEdges = Module._loadEdges(heapBytes.byteOffset, edges.length);
-            Module._free(ptr);
-            document.getElementById("edgeCount").innerText = numEdges;
-        }
-    };
-    req.send(null);
-};
+const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
+const hubAbi = [
+    "function name() view returns (string)",
+    "function symbol() view returns (string)",
+    "function balanceOf(address) view returns (uint)",
+    "function transfer(address to, uint amount)",
+    "function checkSendLimit(address tokenOwner, address src, address dest) view returns (uint256)",
+    "function limits(address,address) view returns (uint256)",
+    "event Signup(address indexed user, address token)",
+    "event OrganizationSignup(address indexed organization)",
+    "event Trust(address indexed canSendTo, address indexed user, uint256 limit)",
+    "event HubTransfer(address indexed from, address indexed to, uint256 amount)"
+];
+const tokenAbi = [
+    "event Transfer(address indexed _from, address indexed _to, uint256 _value)",
+    "event Approval(address indexed _owner, address indexed _spender, uint256 _value)"
+];
 
+const hubContract = new ethers.Contract("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543", hubAbi, provider);
 
-    const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
-    const hubAbi = [
-        "function name() view returns (string)",
-        "function symbol() view returns (string)",
-        "function balanceOf(address) view returns (uint)",
-        "function transfer(address to, uint amount)",
-        "function checkSendLimit(address tokenOwner, address src, address dest) view returns (uint256)",
-        "function limits(address,address) view returns (uint256)",
-        "event Signup(address indexed user, address token)",
-        "event OrganizationSignup(address indexed organization)",
-        "event Trust(address indexed canSendTo, address indexed user, uint256 limit)",
-        "event HubTransfer(address indexed from, address indexed to, uint256 amount)"
-    ];
-    const tokenAbi = [
-        "event Transfer(address indexed _from, address indexed _to, uint256 _value)",
-        "event Approval(address indexed _owner, address indexed _spender, uint256 _value)"
-    ];
-
-    const hubContract = new ethers.Contract("0x29b9a7fBb8995b2423a71cC17cf9810798F6C543", hubAbi, provider);
-  
 let uintToAddress = function(value) {
     if (value.length != 66 || value.substr(0, 26) != "0x000000000000000000000000")
         throw("invalid address: " + value);
     value = "0x" + value.substr(26)
     return ethers.utils.getAddress(value);
+};
+
+let updateSinceBlock = async function(lastKnownBlock) {
+    emDelayEdgeUpdates();
+    // Process all hub events first and then the transfer,
+    // so we can properly filter out unrelated transfers.
+    let signupID = ethers.utils.id("Signup(address,address)");
+    let trustID = ethers.utils.id("Trust(address,address,uint256)");
+    let res = await provider.getLogs({
+        fromBlock: lastKnownBlock,
+        address: hubContract.address,
+        topics: [[signupID, trustID]]
+    });
+    console.log(res.length)
+    let hubEventContainer = document.getElementById('hubEvent')
+    let transferEventContainer = document.getElementById('transferEvent')
+    for (log of res) {
+        try {
+            if (log.topics[0] == signupID) {
+                emSignup(uintToAddress(log.topics[1]), uintToAddress(log.data));
+            } else if (log.topics[0] == trustID) {
+                emTrust(uintToAddress(log.topics[1]), uintToAddress(log.topics[2]), log.data - 0)
+            }
+            hubEventContainer.innerHTML = log.blockNumber;
+        } catch {
+            console.log("Error processing log:")
+            console.log(log)
+        }
+    }
+    res = await provider.getLogs({
+        fromBlock: lastKnownBlock,
+        topics: [ethers.utils.id("Transfer(address,address,uint256)")]
+    });
+    console.log(res.length)
+    for (log of res) {
+        try {
+            let value = log.data;
+            let token = log.address;
+            let from = uintToAddress(log.topics[1]);
+            let to = uintToAddress(log.topics[2]);
+            emTransfer(token, from, to, value)
+            transferEventContainer.innerHTML = log.blockNumber;
+        } catch {
+            console.log("Error processing log:")
+            console.log(log)
+        }
+    }
+    emPerformEdgeUpdates();
+    document.getElementById("edgeCount").innerText = emEdgeCount();
 };
 
 let setupEventListener = async function() {
@@ -164,10 +204,12 @@ let setupEventListener = async function() {
         console.log(`trust ${user} -> ${sendTo} (${limitPercentage}) `);
         // TODO check that limitPercentage is actually a number.
         emTrust(sendTo, user, limitPercentage - 0)
+        // TODO block number?
     });
     hubContract.on("Signup", (user, token) => {
         console.log(`signup ${user} ${token}`);
         emSignup(user, token);
+        // TODO block number?
     });
     provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, (log) => {
         let value = log.data;
@@ -176,6 +218,7 @@ let setupEventListener = async function() {
         let to = uintToAddress(log.topics[2]);
         console.log(`Transfer ${from} -> ${to}: ${value} ${token}`);
         emTransfer(token, from, to, value)
+        document.getElementById('transferEvent').innerHTML = log.blockNumber;
     });
 };
 
@@ -318,13 +361,17 @@ let drawGraph = function(steps) {
     });
 }
 
-window.onload = function() {
-    //loadEdges();
-    loadDB();
-    setupEventListener();
+window.onload = async function() {
     for (x of ["from", "to"]) {
         setupSuggestions(x);
     }
+    document.getElementById('status').innerText = "Loading database...";
+    let dbBlock = await loadDB();
+    document.getElementById('status').innerText = "Applying delta...";
+    console.log("Loaded database up to block " + dbBlock);
+    await updateSinceBlock(dbBlock);
+    document.getElementById('status').innerText = "Up to date.";
+    setupEventListener();
 };
 document.getElementById("compute").onclick = function() {
     let from = document.getElementById("from").value;

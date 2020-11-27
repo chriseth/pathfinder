@@ -23,21 +23,21 @@ Int::Int(uint64_t _value)
 	data[3] = 0;
 }
 
-Int::Int(string const& _decimal): Int(0)
+Int::Int(string const& _value): Int(0)
 {
-	uint32_t radix = 10;
-	if (_decimal.size() >= 2 && _decimal[0] == '0' && _decimal['1'] == 'x')
-		radix = 16;
-
-	for (char c: _decimal)
-	{
-		// TODO optimize for radix 10 and 16?
-		*this *= radix;
-
-		if (radix == 10)
+	if (_value.size() >= 2 && _value[0] == '0' && _value[1] == 'x')
+		for (size_t i = _value.size() - 1; i >= 2; --i)
+		{
+			size_t bit = (_value.size() - 1 - i) * 4;
+			data[bit / 64] |= uint64_t(fromHex(_value[i])) << (bit % 64);
+		}
+	else
+		for (char c: _value)
+		{
+			*this = timesTen(*this);
 			require('0' <= c && c <= '9');
-		*this += Int(fromHex(c));
-	}
+			*this += Int(uint64_t(c - '0'));
+		}
 }
 
 Int& Int::operator+=(Int const& _other)
@@ -203,31 +203,4 @@ string to_string(Address const& _address)
 			ret += static_cast<char>(tolower(addressCharacter));
 	}
 	return ret;
-}
-
-Int Safe::balance(Address const& _token) const
-{
-	auto it = balances.find(_token);
-	return it == balances.end() ? Int{0} : it->second;
-}
-
-
-Safe const& DB::safe(Address const& _address) const
-{
-	auto it = safes.find(Safe{_address, {}, {}});
-	require(it != safes.end());
-	return *it;
-}
-
-Token const& DB::token(Address const& _address) const
-{
-	auto it = tokens.find(Token{_address, {}, {}});
-	require(it != tokens.end());
-	return *it;
-}
-
-Token const* DB::tokenMaybe(Address const& _address) const
-{
-	auto it = tokens.find(Token{_address, {}, {}});
-	return it == tokens.end() ? nullptr : &*it;
 }

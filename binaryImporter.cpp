@@ -3,26 +3,29 @@
 #include "encoding.h"
 #include "exceptions.h"
 
+#include <utility>
+
 using namespace std;
 
-DB BinaryImporter::readDB()
+pair<size_t, DB> BinaryImporter::readBlockNumberAndDB()
 {
+	size_t blockNumber = readSize();
 	readAddresses();
 
 	DB db;
 	size_t numSafes = readSize();
 	for (size_t i = 0; i < numSafes; ++i)
-		db.safes.insert(readSafe());
+	{
+		auto const& [address, s] = readSafe();
+		db.tokens[s.tokenAddress].safeAddress = address;
+		for (auto const& [token, balance]: s.balances)
+			db.tokens[token].totalSupply += balance;
+		db.safes[address] = move(s);
+	}
 
-	size_t numTokens = readSize();
-	for (size_t i = 0; i < numTokens; ++i)
-		db.tokens.insert(readToken());
+	db.computeEdges();
 
-	size_t numConnections = readSize();
-	for (size_t i = 0; i < numConnections; ++i)
-		db.connections.insert(readConnection());
-
-	return db;
+	return {blockNumber, move(db)};
 }
 
 set<Edge> BinaryImporter::readEdgeSet()
@@ -63,10 +66,10 @@ Int BinaryImporter::readInt()
 	return v;
 }
 
-Safe BinaryImporter::readSafe()
+pair<Address, Safe> BinaryImporter::readSafe()
 {
 	Safe s;
-	s.address = readAddress();
+	Address address = readAddress();
 	s.tokenAddress = readAddress();
 	size_t numBalances = readSize();
 	for (size_t i = 0; i < numBalances; i++)
@@ -75,7 +78,15 @@ Safe BinaryImporter::readSafe()
 		Int balance = readInt();
 		s.balances[token] = balance;
 	}
-	return s;
+	size_t numLimits = readSize();
+	for (size_t i = 0; i < numLimits; i++)
+	{
+		Address sendTo = readAddress();
+		uint32_t percentage = readSize();
+		require(percentage <= 100);
+		s.limitPercentage[sendTo] = percentage;
+	}
+	return {address, s};
 }
 
 Token BinaryImporter::readToken()

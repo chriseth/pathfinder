@@ -10,14 +10,13 @@ BinaryExporter::BinaryExporter(string const& _file):
 {
 }
 
-void BinaryExporter::write(DB const& _db)
+void BinaryExporter::write(size_t _blockNumber, DB const& _db)
 {
+	write(_blockNumber);
 	writeAddresses(_db);
 
 	write(_db.safes);
-	write(_db.tokens);
-	// TODO the limit has to be a percentage
-	write(_db.connections);
+	//write(_db.tokens);
 }
 
 void BinaryExporter::write(set<Edge> const& _edges)
@@ -60,9 +59,10 @@ void BinaryExporter::write(Int const& _v)
 
 void BinaryExporter::write(Safe const& _safe)
 {
-	write(_safe.address);
+	//write(_safe.address);
 	write(_safe.tokenAddress);
 	write(_safe.balances);
+	write(_safe.limitPercentage);
 }
 
 void BinaryExporter::write(Token const& _token)
@@ -91,16 +91,14 @@ void BinaryExporter::write(Edge const& _edge)
 void BinaryExporter::writeAddresses(DB const& _db)
 {
 	set<Address> addresses;
-	for (Safe const& safe: _db.safes)
+	for (auto const& [safeAddress, safe]: _db.safes)
 	{
-		addresses.insert(safe.address);
+		addresses.insert(safeAddress);
+		addresses.insert(safe.tokenAddress);
 		for (auto const& balance: safe.balances)
 			addresses.insert(balance.first);
-	}
-	for (Token const& token: _db.tokens)
-	{
-		addresses.insert(token.address);
-		addresses.insert(token.safeAddress);
+		for (auto const& limit: safe.limitPercentage)
+			addresses.insert(limit.first);
 	}
 	writeAddresses(addresses);
 }

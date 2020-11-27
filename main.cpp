@@ -13,8 +13,6 @@
 using namespace std;
 using json = nlohmann::json;
 
-set<Edge> edges;
-
 DB db;
 
 extern "C"
@@ -23,52 +21,45 @@ size_t loadDB(char const* _data, size_t _length)
 {
 	string data(_data, _length);
 	istringstream stream(data);
-	db = BinaryImporter(stream).readDB();
-	return db.safes.size();
+	size_t blockNumber{};
+	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
+	return blockNumber;
+}
+
+size_t edgeCount()
+{
+	return db.edges().size();
+}
+
+void delayEdgeUpdates()
+{
+	cout << "Delaying edge updates." << endl;
+	db.delayEdgeUpdates();
+}
+
+void performEdgeUpdates()
+{
+	db.performEdgeUpdates();
 }
 
 void signup(char const* _user, char const* _token)
 {
-	signup(db, Address(string(_user)), Address(string(_token)));
+	db.signup(Address(string(_user)), Address(string(_token)));
 }
 
 void trust(char const* _canSendTo, char const* _user, int _limitPercentage)
 {
-	trust(db, Address(string(_canSendTo)), Address(string(_user)), uint32_t(_limitPercentage));
+	db.trust(Address(string(_canSendTo)), Address(string(_user)), uint32_t(_limitPercentage));
 }
 
 void transfer(char const* _token, char const* _from, char const* _to, char const* _value)
 {
-	transfer(
-		db,
+	db.transfer(
 		Address(string(_token)),
 		Address(string(_from)),
 		Address(string(_to)),
 		Int(string(_value))
 	);
-}
-
-void edgesFromDB()
-{
-	edges = findEdgesInGraphData(db);
-}
-
-}
-
-extern "C" {
-size_t loadEdges(char const* _data, size_t _length);
-}
-
-size_t loadEdges(char const* _data, size_t _length)
-{
-	string data(_data, _length);
-	istringstream stream(data);
-	edges = importEdgesBinary(stream);
-	return edges.size();
-}
-
-extern "C" {
-char const* flow(char const* _input);
 }
 
 char const* flow(char const* _input)
@@ -79,7 +70,7 @@ char const* flow(char const* _input)
 	Address from{string(parameters["from"])};
 	Address to{string(parameters["to"])};
 	Int value{string(parameters["value"])};
-	auto [flow, transfers] = computeFlow(from, to, edges, value);
+	auto [flow, transfers] = computeFlow(from, to, db.edges(), value);
 
 	json output;
 	output["flow"] = to_string(flow);
@@ -95,28 +86,22 @@ char const* flow(char const* _input)
 
 	return retVal.c_str();
 }
-
-set<Edge> importEdges(string const& _edgeFile)
-{
-	set<Edge> edges;
-	if (_edgeFile.size() >= 4 && _edgeFile.substr(_edgeFile.size() - 4) == ".dat")
-		edges = importEdgesBinary(_edgeFile);
-	else
-		edges = importEdgesJson(_edgeFile);
-	return edges;
 }
 
 void computeFlow(
 	Address const& _source,
 	Address const& _sink,
 	Int const& _value,
-	string const& _edgesDat
+	string const& _dbDat
 )
 {
-	set<Edge> edges = importEdges(_edgesDat);
-	//cout << "Edges: " << edges.size() << endl;
+	ifstream stream(_dbDat);
+	size_t blockNumber{};
+	DB db;
+	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
+	cout << "Edges: " << db.m_edges.size() << endl;
 
-	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value);
+	auto [flow, transfers] = computeFlow(_source, _sink, db.edges(), _value);
 //	cout << "Flow: " << flow << endl;
 //	cout << "Transfers: " << endl;
 //	for (Edge const& edge: transfers)
@@ -141,19 +126,32 @@ void computeFlow(
 
 void importDB(string const& _safesJson, string const& _dbDat)
 {
-	DB db = importFromTheGraph(_safesJson);
-	BinaryExporter(_dbDat).write(db);
+	ifstream graph(_safesJson);
+	json safesJson;
+	graph >> safesJson;
+	graph.close();
+
+	string blockNumberStr(safesJson["blockNumber"]);
+	size_t blockNumber(size_t(stoi(blockNumberStr, nullptr, 0)));
+	require(blockNumber > 0);
+	cout << "Block number: " << blockNumber << endl;
+
+	DB db;
+	db.importFromTheGraph(safesJson["safes"]);
+	BinaryExporter(_dbDat).write(blockNumber, db);
 }
 
+/*
 void dbToEdges(string const& _dbDat, string const& _edgesDat)
 {
 	ifstream in(_dbDat);
 	DB db = BinaryImporter(in).readDB();
 	edgeSetToBinary(
-		findEdgesInGraphData(db),
+		db.computeEdges(),
 		_edgesDat
 	);
 }
+
 
 set<Edge> computeDiff(set<Edge> const& _oldEdges, set<Edge> const& _newEdges)
 {
@@ -245,17 +243,18 @@ void applyDiff(string const& _oldEdges, string const& _diff, string const& _newE
 
 	edgeSetToBinary(newEdges, _newEdges);
 }
+*/
 
 int main(int argc, char const** argv)
 {
 	if (argc == 4 && argv[1] == string{"--importDB"})
 		importDB(argv[2], argv[3]);
-	else if (argc == 4 && argv[1] == string{"--dbToEdges"})
-		dbToEdges(argv[2], argv[3]);
-	else if (argc == 5 && argv[1] == string{"--computeDiff"})
-		computeDiff(argv[2], argv[3], argv[4]);
-	else if (argc == 5 && argv[1] == string{"--applyDiff"})
-		applyDiff(argv[2], argv[3], argv[4]);
+//	else if (argc == 4 && argv[1] == string{"--dbToEdges"})
+//		dbToEdges(argv[2], argv[3]);
+//	else if (argc == 5 && argv[1] == string{"--computeDiff"})
+//		computeDiff(argv[2], argv[3], argv[4]);
+//	else if (argc == 5 && argv[1] == string{"--applyDiff"})
+//		applyDiff(argv[2], argv[3], argv[4]);
 	else if (
 		(argc == 6 && argv[1] == string{"--flow"}) ||
 		(argc == 5 && string(argv[1]).substr(0, 2) != "--")
@@ -265,7 +264,7 @@ int main(int argc, char const** argv)
 	{
 		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.dat>" << endl;
 		cerr << "Options: " << endl;
-		cerr << "  [--flow] <from> <to> <value> <edges.dat>      Compute max flow up to <value> and output transfer steps in json." << endl;
+		cerr << "  [--flow] <from> <to> <value> <db.dat>      Compute max flow up to <value> and output transfer steps in json." << endl;
 		cerr << "  --importDB <safes.json> <db.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
 		cerr << "  --dbToEdges <db.dat> <edges.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
 		cerr << "  --computeDiff <old.dat> <new.dat> <diff.dat>  Compute a difference file." << endl;

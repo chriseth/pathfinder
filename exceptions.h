@@ -10,7 +10,7 @@ class InvalidArgumentException: public std::exception {};
 	do {\
 		if (!bool(condition))\
 		{\
-			std::cerr << "Failing assumption: " << __FILE__ << ":" << __LINE__ << #condition << std::endl;\
+			std::cerr << "Failing assumption: " << __FILE__ << ":" << __LINE__ << " " << #condition << std::endl;\
 			throw Exception();\
 		}\
 	} while (false)
