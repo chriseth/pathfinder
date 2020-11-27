@@ -113,8 +113,8 @@ void DB::computeEdges()
 {
 	cout << "Computing Edges from " << safes.size() << " safes..." << endl;
 	m_edges.clear();
-	for (auto const& [userAddress, safe]: safes)
-		computeEdgesFrom(userAddress);
+	for (auto const& safe: safes)
+		computeEdgesFrom(safe.first);
 	cout << "Created " << m_edges.size() << " edges..." << endl;
 }
 
@@ -123,8 +123,9 @@ void DB::computeEdgesFrom(Address const& _user)
 	if (Safe const* safe = safeMaybe(_user))
 	{
 		// Edges along trust connections.
-		for (auto const& [sendTo, percentage]: safe->limitPercentage)
+		for (auto const& trust: safe->limitPercentage)
 		{
+			Address const& sendTo = trust.first;
 			if (_user == sendTo)
 				continue;
 			Int l = limit(_user, sendTo);
