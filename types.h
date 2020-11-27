@@ -76,26 +76,6 @@ struct Address
 std::string to_string(Address const& _address);
 inline std::ostream& operator<<(std::ostream& os, Address const& _address) { return os << to_string(_address); }
 
-struct Token
-{
-	Address address;
-	Address safeAddress;
-	Int totalSupply;
-
-	bool operator<(Token const& _other) const { return address < _other.address; }
-};
-
-struct Safe
-{
-	Address address;
-	Address tokenAddress;
-	/// token address to balance
-	std::map<Address, Int> balances;
-
-	bool operator<(Safe const& _other) const { return address < _other.address; }
-	Int balance(Address const& _token) const;
-};
-
 struct Connection
 {
 	Address canSendToAddress;
@@ -125,21 +105,3 @@ struct Edge
 			std::make_tuple(_other.from, _other.to, _other.token);
 	}
 };
-
-struct DB
-{
-	std::set<Safe> safes;
-	std::set<Token> tokens;
-	std::set<Connection> connections;
-
-	Safe const& safe(Address const& _address) const;
-	Safe const* safeMaybe(Address const& _address) const
-	{
-		auto it = safes.find(Safe{_address, {}, {}});
-		return it == safes.end() ? nullptr : &(*it);
-	}
-
-	Token const& token(Address const& _address) const;
-	Token const* tokenMaybe(Address const& _address) const;
-};
-

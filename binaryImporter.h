@@ -3,9 +3,8 @@
 #include <iostream>
 #include <fstream>
 
-
 #include "types.h"
-
+#include "db.h"
 
 class BinaryImporter
 {

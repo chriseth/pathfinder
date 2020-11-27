@@ -5,7 +5,7 @@
 
 
 #include "types.h"
-
+#include "db.h"
 
 class BinaryExporter
 {
