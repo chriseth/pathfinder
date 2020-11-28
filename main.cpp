@@ -79,6 +79,7 @@ char const* flow(char const* _input)
 			{"from", to_string(t.from)},
 			{"to", to_string(t.to)},
 			{"token", to_string(t.token)},
+			{"tokenOwner", to_string(db.token(t.token).safeAddress)},
 			{"value", to_string(t.capacity)}
 		});
 
