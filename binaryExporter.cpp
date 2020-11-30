@@ -69,7 +69,6 @@ void BinaryExporter::write(Token const& _token)
 {
 	write(_token.address);
 	write(_token.safeAddress);
-	write(_token.totalSupply);
 }
 
 void BinaryExporter::write(Connection const& _connection)

@@ -7,7 +7,6 @@ struct Token
 {
 	Address address;
 	Address safeAddress;
-	Int totalSupply;
 
 	bool operator<(Token const& _other) const { return address < _other.address; }
 };

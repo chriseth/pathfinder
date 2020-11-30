@@ -18,8 +18,6 @@ pair<size_t, DB> BinaryImporter::readBlockNumberAndDB()
 	{
 		auto const& [address, s] = readSafe();
 		db.tokens[s.tokenAddress].safeAddress = address;
-		for (auto const& [token, balance]: s.balances)
-			db.tokens[token].totalSupply += balance;
 		db.safes[address] = move(s);
 	}
 
@@ -94,7 +92,6 @@ Token BinaryImporter::readToken()
 	Token t;
 	t.address = readAddress();
 	t.safeAddress = readAddress();
-	t.totalSupply = readInt();
 	return t;
 }
 

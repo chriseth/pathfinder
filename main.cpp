@@ -74,6 +74,7 @@ char const* flow(char const* _input)
 
 	json output;
 	output["flow"] = to_string(flow);
+	output["transfers"] = json::array();
 	for (Edge const& t: transfers)
 		output["transfers"].push_back(json{
 			{"from", to_string(t.from)},

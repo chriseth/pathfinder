@@ -125,6 +125,7 @@ let loadDB = async function() {
 const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
 const hubAbi = [
     "function name() view returns (string)",
+    "function userToToken(address) view returns (address)",
     "function symbol() view returns (string)",
     "function balanceOf(address) view returns (uint)",
     "function transfer(address to, uint amount)",
@@ -136,8 +137,17 @@ const hubAbi = [
     "event HubTransfer(address indexed from, address indexed to, uint256 amount)"
 ];
 const tokenAbi = [
-    "event Transfer(address indexed _from, address indexed _to, uint256 _value)",
-    "event Approval(address indexed _owner, address indexed _spender, uint256 _value)"
+  "function name() external view returns (string memory)",
+  "function symbol() external view returns (string memory)",
+  "function decimals() external view returns (uint8)",
+  "function totalSupply() external view returns (uint256)",
+  "function balanceOf(address _owner) external view returns (uint256 balance)",
+  "function transfer(address _to, uint256 _value) external returns (bool success)",
+  "function transferFrom(address _from, address _to, uint256 _value) external returns (bool success)",
+  "function approve(address _spender, uint256 _value) external returns (bool success)",
+  "function allowance(address _owner, address _spender) external view returns (uint256 remaining)",
+  "event Transfer(address indexed _from, address indexed _to, uint256 _value)",
+  "event Approval(address indexed _owner, address indexed _spender, uint256 _value)",
 ];
 
 const hubAddress = "0x29b9a7fBb8995b2423a71cC17cf9810798F6C543";
@@ -420,6 +430,7 @@ document.getElementById("compute").onclick = function() {
     Module._free(buffer);
     let data = JSON.parse(output);
     document.getElementById("flow").innerText = formatValue(data.flow);
+    data.transfers = data.transfers || [];
     document.getElementById("steps").innerHTML = '';
     let addressesToQuery = [];
     let tokensToQuery = [];

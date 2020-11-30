@@ -61,12 +61,10 @@ void DB::importFromTheGraph(json const& _safesJson)
 		for (auto const& balance: safe["balances"])
 		{
 			Int balanceAmount = Int(string(balance["amount"]));
-			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"]), {}};
+			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"])};
 			if (t.safeAddress == address)
 				s.tokenAddress = t.address;
-			// Insert and update total supply.
 			tokens.insert({t.address, move(t)});
-			tokens[t.address].totalSupply += balanceAmount;
 			s.balances[t.address] = balanceAmount;
 		}
 		safes[address] = move(s);
@@ -104,7 +102,7 @@ Int DB::limit(Address const& _user, Address const& _canSendTo) const
 
 	Int receiverBalance = receiverSafe->balance(senderSafe->tokenAddress);
 
-	Int amount = (receiverToken->totalSupply * sendToPercentage) / 100;
+	Int amount = (receiverSafe->balance(receiverSafe->tokenAddress) * sendToPercentage) / 100;
 	amount = amount < receiverBalance ? Int(0) : amount - receiverBalance;
 	return min(amount, senderSafe->balance(senderSafe->tokenAddress));
 }
@@ -179,7 +177,7 @@ void DB::signup(Address const& _user, Address const& _token)
 	if (!safeMaybe(_user))
 		safes[_user] = Safe{_token, {}, {}};
 	if (!tokenMaybe(_token))
-		tokens[_token] = Token{_token, _user, Int{}};
+		tokens[_token] = Token{_token, _user};
 }
 
 void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
@@ -247,7 +245,6 @@ void DB::transfer(
 	if (_from == Address{})
 	{
 		// Token minted.
-		token->totalSupply += _value;
 		updateEdgesTo(_to);
 		updateEdgesFrom(_to);
 	}
@@ -257,6 +254,7 @@ void DB::transfer(
 		require(senderSafe->balances[_token] >= _value);
 		senderSafe->balances[_token] -= _value;
 		// TODO actually only the token
+		// TODO really all of them?
 		updateEdgesFrom(_from);
 		updateEdgesFrom(_to);
 		updateEdgesTo(_from);
