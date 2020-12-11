@@ -261,13 +261,17 @@ let setupSuggestions = function(x) {
     inputBox.onkeyup = function() {
         let sugBox = document.getElementById(x + "Suggestion");
         sugBox.innerHTML = '';
-        queryUser(inputBox.value, function(suggestion) {
-            for (user of suggestion.data) {
-                sugBox.innerHTML = `<img class="avatarImage" src="${user.avatarUrl}" /><div>@${user.username} <small class="address">${user.safeAddress}</small></div>`;
-                sugBox.onclick = function() {
-                    inputBox.value = user.safeAddress;
+        let query = inputBox.value;
+        queryUser(query, function(suggestion) {
+            let user = suggestion.data[0];
+            for (_user of suggestion.data) {
+                if (_user.username == query) {
+                    user = _user;
                 }
-                break;
+            }
+            sugBox.innerHTML = `<img class="avatarImage" src="${user.avatarUrl}" /><div>@${user.username} <small class="address">${user.safeAddress}</small></div>`;
+            sugBox.onclick = function() {
+                inputBox.value = user.safeAddress;
             }
         });
     };
@@ -287,6 +291,9 @@ let completeUserInfo = function() {
 };
 
 let fillUsernames = function(addresses, callback) {
+    if (addresses.length == 0)
+        return;
+
     var req = new XMLHttpRequest();
     let url = CirclesAPI + 'users/?';
     for (addr of addresses) {
@@ -294,7 +301,7 @@ let fillUsernames = function(addresses, callback) {
     }
     req.open("GET", url, true);
     req.onload = function() {
-        if (req.response) {
+        if (req.responseText) {
             for (user of JSON.parse(req.responseText).data) {
                 userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
