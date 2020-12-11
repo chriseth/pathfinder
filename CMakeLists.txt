@@ -56,7 +56,7 @@ if(EMSCRIPTEN)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s STRICT=1")
 	# Export the Emscripten-generated auxiliary methods which are needed by solc-js.
 	# Which methods of libsolc itself are exported is specified in libsolc/CMakeLists.txt.
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s EXTRA_EXPORTED_RUNTIME_METHODS=['cwrap','addFunction','removeFunction','UTF8ToString','lengthBytesUTF8','stringToUTF8','setValue']")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s EXTRA_EXPORTED_RUNTIME_METHODS=['cwrap','ccall']")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s EXPORTED_FUNCTIONS='[\"_loadDB\",\"_signup\",\"_trust\",\"_transfer\",\"_edgeCount\",\"_flow\",\"_delayEdgeUpdates\",\"_performEdgeUpdates\"]' -s RESERVED_FUNCTION_POINTERS=20")
 
 	# Build for webassembly target.

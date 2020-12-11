@@ -54,7 +54,6 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 <p>Transfers:</p>
 <div><div id="graph" style="width: 100%; height: 300px;"></div></div>
 <div id="steps" class="container" style="flex-direction: column;"/>
-<script src="./emscripten_build/pathfinder.js"></script>
 <script type="text/javascript" language="javascript">
 let CirclesAPI = 'https://api.circles.garden/api/';
 let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
@@ -91,36 +90,53 @@ let userByToken = function(token, callback) {
     }));
 }
 
-let emLoadDB = Module.cwrap("loadDB", 'number', ['array', 'number']);
-let emSignup = Module.cwrap("signup", null, ['string', 'string']);
-let emTrust = Module.cwrap("trust", null, ['string', 'string', 'number']);
-let emTransfer = Module.cwrap("transfer", null, ['string', 'string', 'string', 'string']);
-let emEdgeCount = Module.cwrap("edgeCount", 'number', []);
-let emDelayEdgeUpdates = Module.cwrap("delayEdgeUpdates", null, []);
-let emPerformEdgeUpdates = Module.cwrap("performEdgeUpdates", null, []);
+let pathfinder = {};
 
-let loadDB = async function() {
-    return new Promise((resolve, reject) => {
-        var req = new XMLHttpRequest();
-        req.open("GET", "db.dat", true);
-        req.responseType = "arraybuffer";
-        req.onload = function() {
-            if (req.response) {
-                let db = new Uint8Array(req.response);
-                //let safes = emLoadDB(db, db.length);
-                var ptr = Module._malloc(db.length);
-                var heapBytes = new Uint8Array(Module.HEAPU8.buffer, ptr, db.length);
-                heapBytes.set(new Uint8Array(db.buffer));
-                let latestblockNumber = Module._loadDB(heapBytes.byteOffset, db.length);
-                Module._free(ptr);
-                let edgeCount = emEdgeCount();
-                document.getElementById("edgeCount").innerText = edgeCount;
-                resolve(latestblockNumber);
-            }
-        };
-        req.send(null);
+let setupWorker = function() {
+    document.getElementById('status').innerText = "Loading database...";
+
+    let worker = new Worker("pathfinder_worker.js");
+
+    let callID = 0;
+    let callPromises = {};
+
+    let callWorker = async function(name, args, transferrables) {
+        return new Promise((resolve, reject) => {
+            callPromises[callID] = resolve;
+            worker.postMessage({
+                function: name,
+                arguments: args,
+                callID: callID
+            }, transferrables);
+            callID++;
+        });
+    };
+
+    pathfinder.loadDB = async function(db) { return await callWorker('loadDB', [db], [db]); };
+    pathfinder.signup = async function(user, token) { return await callWorker('signup', [user, token]); };
+    pathfinder.trust = async function(canSendTo, user, limit) { return await callWorker('trust', [canSendTo, user, limit]); };
+    pathfinder.transfer = async function(token, from, to, value) { return await callWorker('transfer', [token, from, to, value]); };
+    pathfinder.edgeCount = async function() { return await callWorker('edgeCount', []); };
+    pathfinder.delayEdgeUpdates = async function() { return await callWorker('delayEdgeUpdates', []); };
+    pathfinder.performEdgeUpdates = async function() { return await callWorker('performEdgeUpdates', []); };
+    pathfinder.flow = async function(input) { return await callWorker('flow', [input]); };
+
+    worker.addEventListener('message', async (message) => {
+        if (message.data.callID === 'loaded') {
+            let dbBlock = message.data.result;
+            document.getElementById('status').innerText = "Applying delta...";
+            console.log("Loaded database up to block " + dbBlock);
+            document.getElementById("edgeCount").innerText = await pathfinder.edgeCount();
+            await updateSinceBlock(dbBlock);
+            document.getElementById('status').innerText = "Up to date.";
+            setupEventListener();
+        } else {
+            callPromises[message.data.callID](message.data.result);
+            delete callPromises[message.data.callID];
+        }
     });
 };
+
 
 const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
 const hubAbi = [
@@ -184,7 +200,7 @@ let uintToAddress = function(value) {
 };
 
 let updateSinceBlock = async function(lastKnownBlock) {
-    emDelayEdgeUpdates();
+    await pathfinder.delayEdgeUpdates();
     // Process all hub events first and then the transfer,
     // so we can properly filter out unrelated transfers.
     let signupID = ethers.utils.id("Signup(address,address)");
@@ -194,15 +210,15 @@ let updateSinceBlock = async function(lastKnownBlock) {
         address: hubContract.address,
         topics: [[signupID, trustID]]
     });
-    console.log(res.length)
+    console.log("Number of logs from hub to process: " + res.length)
     let hubEventContainer = document.getElementById('hubEvent')
     let transferEventContainer = document.getElementById('transferEvent')
     for (log of res) {
         try {
             if (log.topics[0] == signupID) {
-                emSignup(uintToAddress(log.topics[1]), uintToAddress(log.data));
+                await pathfinder.signup(uintToAddress(log.topics[1]), uintToAddress(log.data));
             } else if (log.topics[0] == trustID) {
-                emTrust(uintToAddress(log.topics[1]), uintToAddress(log.topics[2]), log.data - 0)
+                await pathfinder.trust(uintToAddress(log.topics[1]), uintToAddress(log.topics[2]), log.data - 0)
             }
             hubEventContainer.innerHTML = log.blockNumber;
         } catch {
@@ -214,44 +230,44 @@ let updateSinceBlock = async function(lastKnownBlock) {
         fromBlock: lastKnownBlock,
         topics: [ethers.utils.id("Transfer(address,address,uint256)")]
     });
-    console.log(res.length)
+    console.log("Number of transfers to process: " + console.log(res.length));
     for (log of res) {
         try {
             let value = log.data;
             let token = log.address;
             let from = uintToAddress(log.topics[1]);
             let to = uintToAddress(log.topics[2]);
-            emTransfer(token, from, to, value)
+            await pathfinder.transfer(token, from, to, value)
             transferEventContainer.innerHTML = log.blockNumber;
         } catch {
             console.log("Error processing log:")
             console.log(log)
         }
     }
-    emPerformEdgeUpdates();
-    document.getElementById("edgeCount").innerText = emEdgeCount();
+    await pathfinder.performEdgeUpdates();
+    document.getElementById("edgeCount").innerText = await pathfinder.edgeCount();
 };
 
 let setupEventListener = async function() {
     console.log("Block: " + await provider.getBlockNumber());
-    hubContract.on("Trust", (sendTo, user, limitPercentage) => {
+    hubContract.on("Trust", async (sendTo, user, limitPercentage) => {
         console.log(`trust ${user} -> ${sendTo} (${limitPercentage}) `);
         // TODO check that limitPercentage is actually a number.
-        emTrust(sendTo, user, limitPercentage - 0)
+        await pathfinder.trust(sendTo, user, limitPercentage - 0)
         // TODO block number?
     });
-    hubContract.on("Signup", (user, token) => {
+    hubContract.on("Signup", async (user, token) => {
         console.log(`signup ${user} ${token}`);
-        emSignup(user, token);
+        await pathfinder.signup(user, token);
         // TODO block number?
     });
-    provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, (log) => {
+    provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, async (log) => {
         let value = log.data;
         let token = log.address;
         let from = uintToAddress(log.topics[1]);
         let to = uintToAddress(log.topics[2]);
         console.log(`Transfer ${from} -> ${to}: ${value} ${token}`);
-        emTransfer(token, from, to, value)
+        await pathfinder.transfer(token, from, to, value)
         document.getElementById('transferEvent').innerHTML = log.blockNumber;
     });
 };
@@ -406,15 +422,9 @@ window.onload = async function() {
     for (x of ["from", "to"]) {
         setupSuggestions(x);
     }
-    document.getElementById('status').innerText = "Loading database...";
-    let dbBlock = await loadDB();
-    document.getElementById('status').innerText = "Applying delta...";
-    console.log("Loaded database up to block " + dbBlock);
-    await updateSinceBlock(dbBlock);
-    document.getElementById('status').innerText = "Up to date.";
-    setupEventListener();
+    setupWorker();
 };
-document.getElementById("compute").onclick = function() {
+document.getElementById("compute").onclick = async function() {
     document.getElementById("validation").innerHTML = '';
     let from = document.getElementById("from").value;
     if (!from.match(/0x[0-9a-fA-F]{40}/)) {
@@ -428,14 +438,9 @@ document.getElementById("compute").onclick = function() {
     if (value == 0) {
         value = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
     } else {
-        value = unformatValue(value)
+        value = unformatValue(value);
     }
-    let parameters = JSON.stringify({"from": from, "to": to, "value": value});
-    var buffer = Module._malloc(parameters.length + 1);
-    Module.stringToUTF8(parameters, buffer, parameters.length + 1);
-    let output = Module.UTF8ToString(Module._flow(buffer));
-    Module._free(buffer);
-    let data = JSON.parse(output);
+    let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value})));
     document.getElementById("flow").innerText = formatValue(data.flow);
     data.transfers = data.transfers || [];
     document.getElementById("steps").innerHTML = '';
