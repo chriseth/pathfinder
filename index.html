@@ -481,6 +481,7 @@ document.getElementById("explore").onclick = async function() {
 
     let nodes = new vis.DataSet();
     let edges = new vis.DataSet();
+    let knownEdges = {};
     let exploreNode = async function(user) {
         let adjacencies = JSON.parse(await pathfinder.adjacencies(user));
         let addressesToQuery = {};
@@ -489,16 +490,20 @@ document.getElementById("explore").onclick = async function() {
             addressesToQuery[edge.trusts] = true;
         }
         fillUsernames(Object.keys(addressesToQuery), function() {
+            let small = function(node) { node['size'] = 10; return node; }
             for (edge of adjacencies) {
-                nodes.update(createNodeContents(edge.user));
-                nodes.update(createNodeContents(edge.trusts));
-                edges.update({
-                    from: edge.user,
-                    to: edge.trusts,
-                    label: edge.percentage == 50 ? '' : edge.percentage + '%',
-                    arrows: "to",
-                    font: {align: "top"}
-                });
+                nodes.update(small(createNodeContents(edge.user)));
+                nodes.update(small(createNodeContents(edge.trusts)));
+                if (!knownEdges[edge.user + ',' + edge.trusts]) {
+                    knownEdges[edge.user + ',' + edge.trusts] = true;
+                    edges.update({
+                        from: edge.user,
+                        to: edge.trusts,
+                        label: edge.percentage == 50 ? '' : edge.percentage + '%',
+                        arrows: "to",
+                        font: {align: "top"}
+                    });
+                }
             }
         });
     };
