@@ -20,6 +20,7 @@ let functions = {
     edgeCount: Module.cwrap("edgeCount", 'number', []),
     delayEdgeUpdates: Module.cwrap("delayEdgeUpdates", null, []),
     performEdgeUpdates: Module.cwrap("performEdgeUpdates", null, []),
+    adjacencies: Module.cwrap("adjacencies", 'string', ['string']),
     flow: Module.cwrap("flow", 'string', ['string'])
 };
 

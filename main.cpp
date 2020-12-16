@@ -62,6 +62,25 @@ void transfer(char const* _token, char const* _from, char const* _to, char const
 	);
 }
 
+/// @returns the incoming and outgoing trust edges for a given user with limit percentages.
+char const* adjacencies(char const* _user)
+{
+	static string retVal;
+	Address user{string(_user)};
+
+	json output = json::array();
+	for (auto const& [address, safe]: db.safes)
+		for (auto const& [sendTo, percentage]: safe.limitPercentage)
+			if (sendTo != address && (user == address || user == sendTo))
+				output.push_back({
+					{"user", to_string(sendTo)},
+					{"percentage", percentage},
+					{"trusts", to_string(user == sendTo ? address : user)}
+				});
+	retVal = output.dump();
+	return retVal.c_str();
+}
+
 char const* flow(char const* _input)
 {
 	static string retVal;

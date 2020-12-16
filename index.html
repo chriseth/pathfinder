@@ -49,13 +49,14 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 <span class="descriptor">Value:</span><input id="value" type="text" /> (put 0 to compute max value to transact)
 </div>
 </div>
-<button id="compute">compute</button><span id="validation"></span>
+<button id="compute">compute</button><span id="validation"></span><br/>
+<button id="explore">explore</button> trust graph of sender
 <p>Value: <span id="flow">?</span></p>
 <p>Transfers:</p>
 <div><div id="graph" style="width: 100%; height: 300px;"></div></div>
 <div id="steps" class="container" style="flex-direction: column;"/>
 <script type="text/javascript" language="javascript">
-let CirclesAPI = 'https://api.circles.garden/api/';
+const CirclesAPI = 'https://api.circles.garden/api/';
 let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
 
 let queryUser = function(username, callback) {
@@ -119,6 +120,7 @@ let setupWorker = function() {
     pathfinder.edgeCount = async function() { return await callWorker('edgeCount', []); };
     pathfinder.delayEdgeUpdates = async function() { return await callWorker('delayEdgeUpdates', []); };
     pathfinder.performEdgeUpdates = async function() { return await callWorker('performEdgeUpdates', []); };
+    pathfinder.adjacencies = async function(input) { return await callWorker('adjacencies', [input]); };
     pathfinder.flow = async function(input) { return await callWorker('flow', [input]); };
 
     worker.addEventListener('message', async (message) => {
@@ -279,15 +281,17 @@ let setupSuggestions = function(x) {
         sugBox.innerHTML = '';
         let query = inputBox.value;
         queryUser(query, function(suggestion) {
-            let user = suggestion.data[0];
-            for (_user of suggestion.data) {
-                if (_user.username == query) {
-                    user = _user;
+            if (suggestion.data) {
+                let user = suggestion.data[0];
+                for (_user of suggestion.data) {
+                    if (_user.username == query) {
+                        user = _user;
+                    }
                 }
-            }
-            sugBox.innerHTML = `<img class="avatarImage" src="${user.avatarUrl}" /><div>@${user.username} <small class="address">${user.safeAddress}</small></div>`;
-            sugBox.onclick = function() {
-                inputBox.value = user.safeAddress;
+                sugBox.innerHTML = `<img class="avatarImage" src="${user.avatarUrl}" /><div>@${user.username} <small class="address">${user.safeAddress}</small></div>`;
+                sugBox.onclick = function() {
+                    inputBox.value = user.safeAddress;
+                }
             }
         });
     };
@@ -313,7 +317,9 @@ let fillUsernames = function(addresses, callback) {
     var req = new XMLHttpRequest();
     let url = CirclesAPI + 'users/?';
     for (addr of addresses) {
-        url += '&address[]=' + addr;
+        if (addr && !userDB[addr]) {
+            url += '&address[]=' + addr;
+        }
     }
     req.open("GET", url, true);
     req.onload = function() {
@@ -363,24 +369,25 @@ let unformatValue = function(value) {
     return left + right;
 };
 
+let labelFor = function(id) {
+    let user = userDB[id.toLowerCase()];
+    if (user && user.username)
+        return user.username;
+    else
+        return id.substr(0, 8);
+};
+let createNodeContents = function(id) {
+    let user = userDB[id.toLowerCase()];
+    let node = {id: id, label: labelFor(id)};
+    if (user && user.avatarUrl) {
+        node['shape'] = 'circularImage';
+        node['image'] = user.avatarUrl;
+    }
+    return node;
+}
+
 let drawGraph = function(steps) {
     var nodes = {};
-    let labelFor = function(id) {
-        let user = userDB[id.toLowerCase()];
-        if (user && user.username)
-            return user.username;
-        else
-            return id.substr(0, 8);
-    }
-    let createNodeContents = function(id) {
-        let user = userDB[id.toLowerCase()];
-        let node = {id: id, label: labelFor(id)};
-        if (user && user.avatarUrl) {
-            node['shape'] = 'circularImage';
-            node['image'] = user.avatarUrl;
-        }
-        return node;
-    }
     let createNode = function(id) {
         nodes[id] = createNodeContents(id);
     };
@@ -416,7 +423,7 @@ let drawGraph = function(steps) {
         let data = [{id: firstNode, x: -x, y:0}, {id:lastNode, x: x, y:0}];
         nodes.update(data);
     });
-}
+};
 
 window.onload = async function() {
     for (x of ["from", "to"]) {
@@ -424,8 +431,11 @@ window.onload = async function() {
     }
     setupWorker();
 };
+
 document.getElementById("compute").onclick = async function() {
     document.getElementById("validation").innerHTML = '';
+    document.getElementById('steps').style.display = 'block';
+    document.getElementById('graph').style.height = '300px';
     let from = document.getElementById("from").value;
     if (!from.match(/0x[0-9a-fA-F]{40}/)) {
         from = document.querySelector('#fromSuggestion .address').innerText;
@@ -461,6 +471,55 @@ document.getElementById("compute").onclick = async function() {
         drawGraph(data.transfers);
     });
     translateTokens(tokensToQuery);
+};
+
+let trustGraph;
+document.getElementById("explore").onclick = async function() {
+    document.getElementById("validation").innerHTML = '';
+    document.getElementById('steps').style.display = 'none';
+    document.getElementById('graph').style.height = '600px';
+
+    let nodes = new vis.DataSet();
+    let edges = new vis.DataSet();
+    let exploreNode = async function(user) {
+        let adjacencies = JSON.parse(await pathfinder.adjacencies(user));
+        let addressesToQuery = {};
+        for (edge of adjacencies) {
+            addressesToQuery[edge.user] = true;
+            addressesToQuery[edge.trusts] = true;
+        }
+        fillUsernames(Object.keys(addressesToQuery), function() {
+            for (edge of adjacencies) {
+                nodes.update(createNodeContents(edge.user));
+                nodes.update(createNodeContents(edge.trusts));
+                edges.update({
+                    from: edge.user,
+                    to: edge.trusts,
+                    label: edge.percentage == 50 ? '' : edge.percentage + '%',
+                    arrows: "to",
+                    font: {align: "top"}
+                });
+            }
+        });
+    };
+
+    var network = new vis.Network(
+        document.getElementById('graph'),
+        {nodes: nodes, edges: edges},
+        {}
+    );
+    network.on('click',function(params){
+        if (!params.nodes || params.nodes.length == 0) return;
+
+        console.log(params);
+        exploreNode(params.nodes[0])
+    });
+
+    let from = document.getElementById("from").value;
+    if (!from.match(/0x[0-9a-fA-F]{40}/)) {
+        from = document.querySelector('#fromSuggestion .address').innerText;
+    }
+    exploreNode(from);
 };
 </script>
 </body>
