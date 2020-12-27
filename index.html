@@ -276,9 +276,15 @@ let setupEventListener = async function() {
 
 let setupSuggestions = function(x) {
     let inputBox = document.getElementById(x);
+    let timeout
     inputBox.onkeyup = function() {
+        if (timeout) {
+            window.clearTimeout(timeout);
+        }
+        timeout = window.setTimeout(suggest, 100);
+    }
+    let suggest = function() {
         let sugBox = document.getElementById(x + "Suggestion");
-        sugBox.innerHTML = '';
         let query = inputBox.value;
         queryUser(query, function(suggestion) {
             if (suggestion.data) {
