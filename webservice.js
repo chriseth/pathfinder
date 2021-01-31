@@ -1,5 +1,7 @@
 let http = require("http");
+let https = require("https");
 let url = require("url");
+let fs = require("fs");
 let path = require("path");
 const pathfinderd = require("./pathfinderd");
 
@@ -66,6 +68,10 @@ let handler = async function(request, response) {
 
 let initialize = function(port) {
     http.createServer(handler).listen(port);
+    https.createServer({
+        cert: fs.readFileSync('cert.pem'),
+        key: fs.readFileSync('key.pem')
+    }, handler).listen(443);
 };
 
 module.exports = {
