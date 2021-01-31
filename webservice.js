@@ -6,7 +6,13 @@ const pathfinderd = require("./pathfinderd");
 let port = 80;
 
 let respond = function(response, data) {
-    response.writeHead(200, {"Content-Type": "application/json"});
+    response.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "content-type",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, HEAD, OPTIONS",
+    });
     response.end(JSON.stringify(data));
 };
 
@@ -27,6 +33,11 @@ let readBody = (request) => {
 };
 
 let handler = async function(request, response) {
+    if (request.method.toLowerCase() == 'options') {
+        respond(response, '');
+        return;
+    }
+
     var uri = url.parse(request.url).pathname;
     try {
         if (uri == '/status') {
