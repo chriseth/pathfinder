@@ -109,11 +109,11 @@ Int DB::limit(Address const& _user, Address const& _canSendTo) const
 
 void DB::computeEdges()
 {
-	cout << "Computing Edges from " << safes.size() << " safes..." << endl;
+	cerr << "Computing Edges from " << safes.size() << " safes..." << endl;
 	m_edges.clear();
 	for (auto const& safe: safes)
 		computeEdgesFrom(safe.first);
-	cout << "Created " << m_edges.size() << " edges..." << endl;
+	cerr << "Created " << m_edges.size() << " edges..." << endl;
 }
 
 void DB::computeEdgesFrom(Address const& _user)
@@ -172,7 +172,7 @@ void DB::computeEdgesTo(Address const& _sendTo)
 
 void DB::signup(Address const& _user, Address const& _token)
 {
-	cout << "Signup: " << _user << " with token " << _token << endl;
+	cerr << "Signup: " << _user << " with token " << _token << endl;
 	// TODO balances empty at start?
 	if (!safeMaybe(_user))
 		safes[_user] = Safe{_token, {}, {}};
@@ -182,7 +182,7 @@ void DB::signup(Address const& _user, Address const& _token)
 
 void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
 {
-	cout << "Trust change: " << _user << " send to " << _canSendTo << ": " << _limitPercentage << "%" << endl;
+	cerr << "Trust change: " << _user << " send to " << _canSendTo << ": " << _limitPercentage << "%" << endl;
 	require(_limitPercentage <= 100);
 
 	if (Safe* safe = safeMaybe(_user))
@@ -197,9 +197,9 @@ void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitP
 		//updateEdges(_user, _canSendTo, safe->tokenAddress);
 	}
 	else
-		cout << "Unknown safe." << endl;
+		cerr << "Unknown safe." << endl;
 
-	cout << "Trust change update complete." << endl;
+	cerr << "Trust change update complete." << endl;
 }
 
 void DB::transfer(
@@ -209,14 +209,14 @@ void DB::transfer(
 	Int const& _value
 )
 {
-	cout << "Transfer: " << _value << ": " << _from << " -> " << _to << " [" << _token << "]" << endl;
+	cerr << "Transfer: " << _value << ": " << _from << " -> " << _to << " [" << _token << "]" << endl;
 	// This is a generic ERC20 event and might be unrelated to the
 	// Circles system.
 	Token* token = tokenMaybe(_token);
 	if (!token || _value == Int{})
 	{
 		if (!token)
-			cout << "Token unknown." << endl;
+			cerr << "Token unknown." << endl;
 		return;
 	}
 
@@ -228,7 +228,7 @@ void DB::transfer(
 		senderSafe = safeMaybe(_from);
 		if (!senderSafe)
 		{
-			cout << "Unknown sender safe." << endl;
+			cerr << "Unknown sender safe." << endl;
 			return;
 		}
 	}
@@ -238,7 +238,7 @@ void DB::transfer(
 		receiverSafe->balances[_token] += _value;
 	else
 	{
-		cout << "Unknown receiver safe." << endl;
+		cerr << "Unknown receiver safe." << endl;
 		return;
 	}
 
@@ -260,7 +260,7 @@ void DB::transfer(
 		updateEdgesTo(_from);
 		updateEdgesTo(_to);
 	}
-	cout << "Update following transfer complete." << endl;
+	cerr << "Update following transfer complete." << endl;
 }
 
 void DB::updateEdgesFrom(Address const& _from)
@@ -268,7 +268,7 @@ void DB::updateEdgesFrom(Address const& _from)
 	if (m_delayEdgeUpdates)
 		return;
 
-	cout << "Updating edges from " << _from << endl;
+	cerr << "Updating edges from " << _from << endl;
 
 	// TODO this loop can be optimized because of the sort order.
 	for (auto it = m_edges.begin(); it != m_edges.end();)
@@ -279,7 +279,7 @@ void DB::updateEdgesFrom(Address const& _from)
 
 	computeEdgesFrom(_from);
 
-	cout << "Done." << endl;
+	cerr << "Done." << endl;
 }
 
 void DB::updateEdgesTo(Address const& _to)
@@ -287,7 +287,7 @@ void DB::updateEdgesTo(Address const& _to)
 	if (m_delayEdgeUpdates)
 		return;
 
-	cout << "Updating edges to " << _to << endl;
+	cerr << "Updating edges to " << _to << endl;
 	for (auto it = m_edges.begin(); it != m_edges.end();)
 		if (it->to == _to)
 			it = m_edges.erase(it);
@@ -296,5 +296,5 @@ void DB::updateEdgesTo(Address const& _to)
 
 	computeEdgesTo(_to);
 
-	cout << "Done." << endl;
+	cerr << "Done." << endl;
 }
