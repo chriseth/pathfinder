@@ -1,17 +1,102 @@
 let fs = require('fs').promises;
+let fs_cb = require('fs');
+let https = require('https');
 let ethers = require('ethers')
-let pathfinder_ = require('./emscripten_build/pathfinder.js')
-let pathfinder = {
-    loadDB: pathfinder_.cwrap("loadDB", 'number', ['array', 'number']),
-    signup: pathfinder_.cwrap("signup", null, ['string', 'string']),
-    trust: pathfinder_.cwrap("trust", null, ['string', 'string', 'number']),
-    transfer: pathfinder_.cwrap("transfer", null, ['string', 'string', 'string', 'string']),
-    edgeCount: pathfinder_.cwrap("edgeCount", 'number', []),
-    delayEdgeUpdates: pathfinder_.cwrap("delayEdgeUpdates", null, []),
-    performEdgeUpdates: pathfinder_.cwrap("performEdgeUpdates", null, []),
-    adjacencies: pathfinder_.cwrap("adjacencies", 'string', ['string']),
-    flow: pathfinder_.cwrap("flow", 'string', ['string'])
+let stream = true;
+let pathfinder = {};
+
+let download = function(url, dest, cb) {
+    return new Promise((resolve, reject) => {
+        const file = fs_cb.createWriteStream(dest);
+        const request = https.get(url, (response) => {
+            if (response.statusCode !== 200) {
+                reject('Response status was ' + response.statusCode);
+            }
+            response.pipe(file);
+        });
+        file.on('finish', () => file.close(() => resolve()));
+        request.on('error', (err) => {
+            fs.unlink(dest);
+            reject(err.message);
+        });
+        file.on('error', (err) => {
+            fs.unlink(dest);
+            reject(err.message);
+        });
+    });
 };
+
+if (stream)
+{
+    let latestID = 0;
+    let callPromises = {};
+    let callJson = async function(cmd, data) {
+        return new Promise((resolve, reject) => {
+            let input = data;
+            input.cmd = cmd;
+            input.id = ++latestID;
+            callPromises[input.id] = resolve;
+            try {
+                proc.stdin.write(JSON.stringify(input) + "\n");
+            } catch (e) {
+                reject(e);
+            }
+        });
+    };
+    let {spawn} = require('child_process');
+    let proc = spawn('build/pathfinder', ['--json']);
+    let buffer = '';
+    proc.stdout.on('data', (data) => {
+        for (c of data.toString()) {
+            c = c + '';
+            if (c == '\n') {
+                try {
+                    let message = JSON.parse(buffer)
+                    callPromises[message.id](message);
+                } catch (e) {
+                    console.log("Error:", e)
+                }
+                buffer = '';
+            }
+            else
+                buffer += c;
+        }
+    });
+    proc.stderr.on('data', (data) => {
+        console.log("ERROR: " + data);
+    });
+    pathfinder = {
+        loadDB: async (file) => { return (await callJson('loaddb', {file: file})).blockNumber; },
+        signup: async (user, token) => { await callJson('signup', {user: user, token: token}); },
+        trust: async (canSendTo, user, limitPercentage) => { await callJson('trust', {canSendTo: canSendTo, user: user, limitPercentage: limitPercentage}); },
+        transfer: async (token, from, to, value) => { await callJson('transfer', {token: token, from: from, to: to, value: value}); },
+        edgeCount: async () => { return (await callJson('edgeCount', {})).edgeCount; },
+        delayEdgeUpdates: async () => { await callJson('delayEdgeUpdates', {}); },
+        performEdgeUpdates: async () => { await callJson('performEdgeUpdates', {}); },
+        adjacencies: async (user) => { return (await callJson('adjacencies', {user: user})).adjacencies; },
+        flow: async (from, to, value) => {
+            let result = await callJson('flow', {from: from, to: to, value: value});
+            return {flow: result.flow, transfers: result.transfers};
+        }
+    };
+      
+
+}
+else
+{
+    let pathfinder_ = require('./emscripten_build/pathfinder.js')
+    pathfinder = {
+        loadDB: pathfinder_.cwrap("loadDB", 'number', ['array', 'number']),
+        signup: pathfinder_.cwrap("signup", null, ['string', 'string']),
+        trust: pathfinder_.cwrap("trust", null, ['string', 'string', 'number']),
+        transfer: pathfinder_.cwrap("transfer", null, ['string', 'string', 'string', 'string']),
+        edgeCount: pathfinder_.cwrap("edgeCount", 'number', []),
+        delayEdgeUpdates: pathfinder_.cwrap("delayEdgeUpdates", null, []),
+        performEdgeUpdates: pathfinder_.cwrap("performEdgeUpdates", null, []),
+        adjacencies: pathfinder_.cwrap("adjacencies", 'string', ['string']),
+        flow: pathfinder_.cwrap("flow", 'string', ['string'])
+    };
+}
 
 
 const CirclesAPI = 'https://api.circles.garden/api/';
@@ -45,6 +130,14 @@ let uintToAddress = function(value) {
 
 
 let loadDB = async function() {
+    console.log("Downloading database file...")
+    await download("https://chriseth.github.io/pathfinder/db.dat", "./db.dat");
+
+    if (stream)
+	{
+        return await pathfinder.loadDB('db.dat');
+    }
+
     let db = await fs.readFile('db.dat');
     let length = db.byteLength;
     var ptr = pathfinder_._malloc(length);
