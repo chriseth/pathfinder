@@ -15,6 +15,7 @@ fetch('db.dat').then(async response => {
 
 let functions = {
     signup: Module.cwrap("signup", null, ['string', 'string']),
+    organizationSignup: Module.cwrap("organizationSignup", null, ['string']),
     trust: Module.cwrap("trust", null, ['string', 'string', 'number']),
     transfer: Module.cwrap("transfer", null, ['string', 'string', 'string', 'string']),
     edgeCount: Module.cwrap("edgeCount", 'number', []),

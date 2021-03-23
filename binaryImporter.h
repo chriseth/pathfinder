@@ -16,6 +16,7 @@ public:
 	std::set<Edge> readEdgeSet();
 
 private:
+	bool readBool();
 	size_t readSize();
 	Address readAddress();
 	Int readInt();

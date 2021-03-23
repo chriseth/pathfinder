@@ -3,7 +3,6 @@
 #include "exceptions.h"
 #include "binaryExporter.h"
 #include "binaryImporter.h"
-#include "dbUpdates.h"
 
 #include "json.hpp"
 
@@ -87,6 +86,11 @@ void performEdgeUpdates()
 void signup(char const* _user, char const* _token)
 {
 	db.signup(Address(string(_user)), Address(string(_token)));
+}
+
+void organizationSignup(char const* _organization)
+{
+	db.organizationSignup(Address(string(_organization)));
 }
 
 void trust(char const* _canSendTo, char const* _user, int _limitPercentage)
@@ -281,7 +285,7 @@ void jsonMode()
 {
 	map<string, function<json(json const&)>> functions{
 		{"loaddb", [](json const& _input) {
-			ifstream instream(_input["file"]);
+			ifstream instream{string{_input["file"]}};
 			size_t blockNumber;
 			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
 			return json{{"blockNumber", blockNumber}};
@@ -293,6 +297,10 @@ void jsonMode()
 		{"performEdgeUpdates", [](json const&) { db.performEdgeUpdates(); return json{}; }},
 		{"signup", [](json const& _input) {
 			db.signup(Address(_input["user"]), Address(_input["token"]));
+			return json{};
+		}},
+		{"organizationSignup", [](json const& _input) {
+			db.organizationSignup(Address(_input["organization"]));
 			return json{};
 		}},
 		{"trust", [](json const& _input) {

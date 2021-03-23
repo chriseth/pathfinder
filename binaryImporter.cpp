@@ -40,6 +40,11 @@ set<Edge> BinaryImporter::readEdgeSet()
 }
 
 
+bool BinaryImporter::readBool()
+{
+	return m_input.get() != 0;
+}
+
 size_t BinaryImporter::readSize()
 {
 	uint64_t result{};
@@ -84,6 +89,7 @@ pair<Address, Safe> BinaryImporter::readSafe()
 		require(percentage <= 100);
 		s.limitPercentage[sendTo] = percentage;
 	}
+	s.organization = readBool();
 	return {address, s};
 }
 

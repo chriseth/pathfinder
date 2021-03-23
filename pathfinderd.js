@@ -68,6 +68,7 @@ if (stream)
     pathfinder = {
         loadDB: async (file) => { return (await callJson('loaddb', {file: file})).blockNumber; },
         signup: async (user, token) => { await callJson('signup', {user: user, token: token}); },
+        organizationSignup: async (organization) => { await callJson('organizationSignup', {organization: organization}); },
         trust: async (canSendTo, user, limitPercentage) => { await callJson('trust', {canSendTo: canSendTo, user: user, limitPercentage: limitPercentage}); },
         transfer: async (token, from, to, value) => { await callJson('transfer', {token: token, from: from, to: to, value: value}); },
         edgeCount: async () => { return (await callJson('edgeCount', {})).edgeCount; },
@@ -88,6 +89,7 @@ else
     pathfinder = {
         loadDB: pathfinder_.cwrap("loadDB", 'number', ['array', 'number']),
         signup: pathfinder_.cwrap("signup", null, ['string', 'string']),
+        organizationSignup: pathfinder_.cwrap("organizationSignup", null, ['string']),
         trust: pathfinder_.cwrap("trust", null, ['string', 'string', 'number']),
         transfer: pathfinder_.cwrap("transfer", null, ['string', 'string', 'string', 'string']),
         edgeCount: pathfinder_.cwrap("edgeCount", 'number', []),
@@ -154,12 +156,13 @@ let updateSinceBlock = async function(lastKnownBlock) {
     // Process all hub events first and then the transfer,
     // so we can properly filter out unrelated transfers.
     let signupID = ethers.utils.id("Signup(address,address)");
+    let organizationSignupID = ethers.utils.id("OrganizationSignup(address)");
     let trustID = ethers.utils.id("Trust(address,address,uint256)");
     console.log("Retrieving logs...")
     let res = await provider.getLogs({
         fromBlock: lastKnownBlock,
         address: hubContract.address,
-        topics: [[signupID, trustID]]
+        topics: [[signupID, organizationSignupID, trustID]]
     });
     console.log("Number of events from hub to process: " + res.length)
     let successNr = 0;
@@ -167,6 +170,8 @@ let updateSinceBlock = async function(lastKnownBlock) {
         try {
             if (log.topics[0] == signupID) {
                 await pathfinder.signup(uintToAddress(log.topics[1]), uintToAddress(log.data));
+            } else if (log.topics[0] == organizationSignupID) {
+                await pathfinder.organizationSignup(uintToAddress(log.topics[1]));
             } else if (log.topics[0] == trustID) {
                 await pathfinder.trust(uintToAddress(log.topics[1]), uintToAddress(log.topics[2]), log.data - 0)
             }
@@ -215,6 +220,11 @@ let setupEventListener = async function() {
     hubContract.on("Signup", async (user, token) => {
         console.log(`signup ${user} ${token}`);
         await pathfinder.signup(user, token);
+        // TODO block number?
+    });
+    hubContract.on("OrganizationSignup", async (organization) => {
+        console.log(`organization signup ${organization}`);
+        await pathfinder.organizationSignup(organization);
         // TODO block number?
     });
     provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, async (log) => {

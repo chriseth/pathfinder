@@ -18,6 +18,7 @@ struct Safe
 	std::map<Address, Int> balances;
 	/// Limit percentage in "send to" direction.
 	std::map<Address, uint32_t> limitPercentage;
+	bool organization;
 
 	Int balance(Address const& _token) const;
 	uint32_t sendToPercentage(Address const& _sendToUser) const;
@@ -60,6 +61,7 @@ struct DB
 	void updateLimit(DB const& _db, Connection& _connection);
 
 	void signup(Address const& _user, Address const& _token);
+	void organizationSignup(Address const& _organization);
 	void trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage);
 	void transfer(Address const& _token, Address const& _from, Address const& _to, Int const& _value);
 

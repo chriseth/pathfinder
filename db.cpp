@@ -57,6 +57,8 @@ void DB::importFromTheGraph(json const& _safesJson)
 	for (json const& safe: _safesJson)
 	{
 		Safe s;
+		if (safe.contains("organization") && safe["organization"])
+			s.organization = true;
 		Address address = Address(string(safe["id"]));
 		for (auto const& balance: safe["balances"])
 		{
@@ -92,12 +94,15 @@ Int DB::limit(Address const& _user, Address const& _canSendTo) const
 	if (!senderSafe || !receiverSafe)
 		return {};
 
-	Token const* receiverToken = tokenMaybe(receiverSafe->tokenAddress);
-	if (!receiverToken)
-		return {};
-
 	uint32_t sendToPercentage = senderSafe->sendToPercentage(_canSendTo);
 	if (sendToPercentage == 0)
+		return {};
+
+	if (receiverSafe->organization)
+		return senderSafe->balance(senderSafe->tokenAddress);
+
+	Token const* receiverToken = tokenMaybe(receiverSafe->tokenAddress);
+	if (!receiverToken)
 		return {};
 
 	Int receiverBalance = receiverSafe->balance(senderSafe->tokenAddress);
@@ -146,9 +151,6 @@ void DB::computeEdgesTo(Address const& _sendTo)
 	if (!receiverSafe)
 		return;
 	Address const& tokenAddress = receiverSafe->tokenAddress;
-	Token const* token = tokenMaybe(tokenAddress);
-	if (!token)
-		return;
 
 	for (auto const& [sender, safe]: safes)
 	{
@@ -175,9 +177,16 @@ void DB::signup(Address const& _user, Address const& _token)
 	cerr << "Signup: " << _user << " with token " << _token << endl;
 	// TODO balances empty at start?
 	if (!safeMaybe(_user))
-		safes[_user] = Safe{_token, {}, {}};
+		safes[_user] = Safe{_token, {}, {}, false};
 	if (!tokenMaybe(_token))
 		tokens[_token] = Token{_token, _user};
+}
+
+void DB::organizationSignup(Address const& _organization)
+{
+	cerr << "Organization signup: " << _organization << endl;
+	if (!safeMaybe(_organization))
+		safes[_organization] = Safe{{}, {}, {}, true};
 }
 
 void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
