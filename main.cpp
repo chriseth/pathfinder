@@ -119,7 +119,7 @@ char const* adjacencies(char const* _user)
 char const* flow(char const* _input)
 {
 	static string retVal;
-	retVal = flowJson(json::parse(string(_input)));
+	retVal = flowJson(json::parse(string(_input))).dump();
 	return retVal.c_str();
 }
 }
