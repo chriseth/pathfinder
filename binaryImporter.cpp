@@ -87,7 +87,8 @@ pair<Address, Safe> BinaryImporter::readSafe()
 		Address sendTo = readAddress();
 		uint32_t percentage = readSize();
 		require(percentage <= 100);
-		s.limitPercentage[sendTo] = percentage;
+		if (percentage > 0)
+			s.limitPercentage[sendTo] = percentage;
 	}
 	s.organization = readBool();
 	return {address, s};

@@ -78,7 +78,7 @@ void DB::importFromTheGraph(json const& _safesJson)
 				Address user(connection["userAddress"]);
 				uint32_t limitPercentage = uint32_t(std::stoi(string(connection["limitPercentage"])));
 				require(limitPercentage <= 100);
-				if (sendTo != Address{} && user != Address{} && sendTo != user)
+				if (sendTo != Address{} && user != Address{} && sendTo != user && limitPercentage > 0)
 					if (safes.count(user))
 						safes.at(user).limitPercentage[sendTo] = limitPercentage;
 			}
