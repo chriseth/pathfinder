@@ -123,6 +123,10 @@ const hubContract = new ethers.Contract(hubAddress, hubAbi, provider);
 
 let latestBlockNumber = 0;
 
+let latestUpdate = 0;
+let update = function() { latestUpdate = +new Date(); };
+update();
+
 let uintToAddress = function(value) {
     if (value.length != 66 || value.substr(0, 26) != "0x000000000000000000000000")
         throw("invalid address: " + value);
@@ -148,6 +152,7 @@ let loadDB = async function() {
     let latestBlockNumber = pathfinder_._loadDB(heapBytes.byteOffset, length);
     pathfinder_._free(ptr);
     console.log("loaded, latest block: " + latestBlockNumber);
+    update();
     return latestBlockNumber;
 };
 
@@ -205,6 +210,7 @@ let updateSinceBlock = async function(lastKnownBlock) {
     }
     console.log(`Transfers processed, ${successNr} out of ${res.length} successfully.`);
     await pathfinder.performEdgeUpdates();
+    update();
     console.log("Edge count: " + await pathfinder.edgeCount());
 };
 
@@ -214,17 +220,20 @@ let setupEventListener = async function() {
     hubContract.on("Trust", async (sendTo, user, limitPercentage) => {
         console.log(`trust ${user} -> ${sendTo} (${limitPercentage}) `);
         // TODO check that limitPercentage is actually a number.
-        await pathfinder.trust(sendTo, user, limitPercentage - 0)
+        await pathfinder.trust(sendTo, user, limitPercentage - 0);
+        update();
         // TODO block number?
     });
     hubContract.on("Signup", async (user, token) => {
         console.log(`signup ${user} ${token}`);
         await pathfinder.signup(user, token);
+        update();
         // TODO block number?
     });
     hubContract.on("OrganizationSignup", async (organization) => {
         console.log(`organization signup ${organization}`);
         await pathfinder.organizationSignup(organization);
+        update();
         // TODO block number?
     });
     provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, async (log) => {
@@ -234,6 +243,7 @@ let setupEventListener = async function() {
         let to = uintToAddress(log.topics[2]);
         console.log(`Transfer ${from} -> ${to}: ${value} ${token}`);
         await pathfinder.transfer(token, from, to, value)
+        update();
         latestBlockNumber = log.blockNumber;
     });
 };
@@ -242,11 +252,13 @@ let startup = async function() {
     latestBlockNumber = await loadDB();
     await updateSinceBlock(latestBlockNumber);
     await setupEventListener();
+    update();
 };
 
 module.exports = {
     startup: startup,
     latestBlock: () => latestBlockNumber,
+    latestUpdate: () => latestUpdate,
     edgeCount: pathfinder.edgeCount,
     flow: pathfinder.flow,
     adjacencies: pathfinder.adjacencies

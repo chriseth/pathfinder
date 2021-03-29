@@ -53,6 +53,13 @@ let handler = async function(request, response) {
             response.end(fs.readFileSync('index.html',{encoding: 'utf-8'}).replace('setupWorker();', 'setupServer();'));
         } else if (uri == '/status') {
             respond(response, {block: await pathfinderd.latestBlock(), edges: await pathfinderd.edgeCount()})
+        } else if (uri.startsWith('/health/')) {
+            let age = ((+new Date()) - pathfinderd.latestUpdate()) / 1000;
+            if (age > uri.substring('/health/'.length) - 0)
+                response.writeHead(500);
+            else
+                response.writeHead(200);
+            response.end('Last update ' + age + ' seconds ago.');
         } else if (uri == '/flow') {
             var body = JSON.parse(await readBody(request));
             let from = body['from'];
