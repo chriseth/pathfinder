@@ -140,6 +140,15 @@ let setupWorker = function() {
     });
 };
 
+let setupServer = async function() {
+    pathfinder.edgeCount = async function() { return (await (await fetch('/status')).json())['edges']; };
+    pathfinder.adjacencies = async function(input) { return (await (await fetch('/adjacencies/' + input)).text()); };
+    pathfinder.flow = async function(input) { return await (await fetch('/flow', {method: 'POST', body: input})).text(); };
+
+    document.getElementById('status').innerText = "Up to date.";
+    document.getElementById("edgeCount").innerText = await pathfinder.edgeCount();
+};
+
 
 const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
 const hubAbi = [

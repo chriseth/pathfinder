@@ -45,7 +45,13 @@ let handler = async function(request, response) {
 
     var uri = url.parse(request.url).pathname;
     try {
-        if (uri == '/status') {
+        if (uri == '/') {
+            response.writeHead(200, {
+                "Content-Type": "text/html",
+                "Access-Control-Allow-Origin": "*"
+            });
+            response.end(fs.readFileSync('index.html',{encoding: 'utf-8'}).replace('setupWorker();', 'setupServer();'));
+        } else if (uri == '/status') {
             respond(response, {block: await pathfinderd.latestBlock(), edges: await pathfinderd.edgeCount()})
         } else if (uri == '/flow') {
             var body = JSON.parse(await readBody(request));
@@ -71,10 +77,12 @@ let handler = async function(request, response) {
 let initialize = function(port) {
 	
     http.createServer(handler).listen(port);
-    https.createServer({
-        cert: fs.readFileSync('cert.pem'),
-        key: fs.readFileSync('key.pem')
-    }, handler).listen(443);
+    if (port < 1024) {
+        https.createServer({
+            cert: fs.readFileSync('cert.pem'),
+            key: fs.readFileSync('key.pem')
+        }, handler).listen(443);
+    }
 };
 
 module.exports = {
