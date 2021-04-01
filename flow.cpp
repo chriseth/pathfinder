@@ -8,8 +8,7 @@
 
 using namespace std;
 
-/// Either an actual node, or a newly introduced node on a token edge.
-using Node = variant<Address, tuple<Address, Address>>;
+using Node = FlowGraphNode;
 
 Node pseudoNode(Edge const& _edge)
 {
@@ -144,12 +143,25 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 	return transfers;
 }
 
-pair<Int, vector<Edge>> computeFlow(Address const& _source, Address const& _sink, set<Edge> const& _edges, Int _requestedFlow)
+pair<Int, vector<Edge>> computeFlow(
+	Address const& _source,
+	Address const& _sink,
+#if USE_FLOW
+	map<Node, map<Node, Int>> const& adjacencies,
+#else
+	set<Edge> const& _edges,
+#endif
+	Int _requestedFlow
+)
 {
-	//cout << "Computing adjacencies..." << endl;
+	cerr << "Computing adjacencies..." << endl;
+#if USE_FLOW
+	map<Node, map<Node, Int>> capacities = adjacencies;
+#else
 	map<Node, map<Node, Int>> adjacencies = computeAdjacencies(_edges);
 	map<Node, map<Node, Int>> capacities = adjacencies;
-	//cout << "Number of nodes (including pseudo-nodes): " << adjacencies.size() << endl;
+#endif
+	cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
@@ -169,7 +181,7 @@ pair<Int, vector<Edge>> computeFlow(Address const& _source, Address const& _sink
 			capacities[prev][node] -= newFlow;
 			capacities[node][prev] += newFlow;
 			// TODO still not sure about this one.
-			if (adjacencies[node][prev] == Int(0))
+			if (!adjacencies.count(node) || !adjacencies.at(node).count(prev) || adjacencies.at(node).at(prev) == Int(0))
 				// real edge
 				usedEdges[prev][node] += newFlow;
 			else

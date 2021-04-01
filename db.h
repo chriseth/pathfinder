@@ -28,7 +28,13 @@ struct DB
 {
 	std::map<Address, Safe> safes;
 	std::map<Address, Token> tokens;
+	/// Trust edges.
 	std::set<Edge> m_edges;
+
+	/// Adjacency list of the flow graph.
+	/// The trust graph is a multi-graph, but this one introduces
+	/// one node on each edge of the trust graph.
+	std::map<FlowGraphNode, std::map<FlowGraphNode, Int>> m_flowGraph;
 
 	bool m_delayEdgeUpdates = false;
 
@@ -57,6 +63,7 @@ struct DB
 	void computeEdgesFrom(Address const& _user);
 	void computeEdgesTo(Address const& _user);
 	std::set<Edge> const& edges() const { return m_edges; }
+	std::map<FlowGraphNode, std::map<FlowGraphNode, Int>> const& flowGraph() const { return m_flowGraph; }
 
 	void updateLimit(DB const& _db, Connection& _connection);
 

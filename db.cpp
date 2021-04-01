@@ -116,6 +116,7 @@ void DB::computeEdges()
 {
 	cerr << "Computing Edges from " << safes.size() << " safes..." << endl;
 	m_edges.clear();
+	m_flowGraph.clear();
 	for (auto const& safe: safes)
 		computeEdgesFrom(safe.first);
 	cerr << "Created " << m_edges.size() << " edges..." << endl;
@@ -123,26 +124,37 @@ void DB::computeEdges()
 
 void DB::computeEdgesFrom(Address const& _user)
 {
-	if (Safe const* safe = safeMaybe(_user))
+	Safe const* safe = safeMaybe(_user);
+	if (!safe)
+		return;
+
+	// Edge from user to their own token, restricted by balance.
+	m_flowGraph[_user][make_pair(_user, safe->tokenAddress)] = safe->balance(safe->tokenAddress);
+
+	// Edges along trust connections.
+	for (auto const& trust: safe->limitPercentage)
 	{
-		// Edges along trust connections.
-		for (auto const& trust: safe->limitPercentage)
-		{
-			Address const& sendTo = trust.first;
-			if (_user == sendTo)
-				continue;
-			Int l = limit(_user, sendTo);
-			if (l == Int(0))
-				continue;
-			m_edges.emplace(Edge{_user, sendTo, safe->tokenAddress, l});
-		}
-		// Edges that send tokens back to their owner.
-		for (auto const& [tokenAddress, balance]: safe->balances)
-			if (balance != Int(0))
-				if (Token const* token = tokenMaybe(tokenAddress))
-					if (_user != token->safeAddress)
-						m_edges.emplace(Edge{_user, token->safeAddress, tokenAddress, balance});
+		Address const& sendTo = trust.first;
+		if (_user == sendTo)
+			continue;
+		Int l = limit(_user, sendTo);
+		if (l == Int(0))
+			continue;
+		m_edges.emplace(Edge{_user, sendTo, safe->tokenAddress, l});
+		// Edge from the user/token pair to the receiver, restricted by send limit.
+		m_flowGraph[make_pair(_user, safe->tokenAddress)][sendTo] = l;
 	}
+
+	// Edges that send tokens back to their owner.
+	for (auto const& [tokenAddress, balance]: safe->balances)
+		if (balance != Int(0))
+			if (Token const* token = tokenMaybe(tokenAddress))
+				if (_user != token->safeAddress)
+				{
+					m_edges.emplace(Edge{_user, token->safeAddress, tokenAddress, balance});
+					m_flowGraph[_user][make_pair(_user, tokenAddress)] = balance;
+					m_flowGraph[make_pair(_user, tokenAddress)][token->safeAddress] = balance;
+				}
 }
 
 void DB::computeEdgesTo(Address const& _sendTo)
@@ -164,11 +176,17 @@ void DB::computeEdgesTo(Address const& _sendTo)
 			if (l == Int(0))
 				continue;
 			m_edges.emplace(Edge{sender, _sendTo, safe.tokenAddress, l});
+			m_flowGraph[sender][make_pair(sender, safe.tokenAddress)] = safe.balance(safe.tokenAddress);
+			m_flowGraph[make_pair(sender, safe.tokenAddress)][_sendTo] = l;
 		}
 		// Edges that send tokens back to their owner.
 		Int balance = safe.balance(tokenAddress);
 		if (balance != Int{})
+		{
 			m_edges.emplace(Edge{sender, _sendTo, tokenAddress, balance});
+			m_flowGraph[sender][make_pair(sender, tokenAddress)] = balance;
+			m_flowGraph[make_pair(sender, tokenAddress)][_sendTo] = balance;
+		}
 	}
 }
 
@@ -286,6 +304,14 @@ void DB::updateEdgesFrom(Address const& _from)
 		else
 			++it;
 
+	m_flowGraph.erase(_from);
+	cerr << "erasing pseudo-edges..." <<endl;
+	m_flowGraph.erase(
+		m_flowGraph.lower_bound(make_pair(_from, Address{})),
+		m_flowGraph.upper_bound(make_pair(_from, Address{"0xffffffffffffffffffffffffffffffffffffffff"s}))
+	);
+	cerr << "done" << endl;
+
 	computeEdgesFrom(_from);
 
 	cerr << "Done." << endl;
@@ -302,6 +328,12 @@ void DB::updateEdgesTo(Address const& _to)
 			it = m_edges.erase(it);
 		else
 			++it;
+	cerr << "erasing pseudo-edges..." <<endl;
+	// TODO this does not leave the graph in a clean state, but
+	// it is probably enough.
+	for (auto& [node, targets]: m_flowGraph)
+		targets.erase(_to);
+	cerr << "done" << endl;
 
 	computeEdgesTo(_to);
 

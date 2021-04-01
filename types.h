@@ -7,6 +7,7 @@
 #include <set>
 #include <iostream>
 #include <array>
+#include <variant>
 
 
 struct Int
@@ -105,3 +106,9 @@ struct Edge
 			std::make_tuple(_other.from, _other.to, _other.token);
 	}
 };
+
+
+/// Node in the flow Graph.
+/// Either an actual node, or a newly introduced node on a token edge.
+using FlowGraphNode = std::variant<Address, std::tuple<Address, Address>>;
+

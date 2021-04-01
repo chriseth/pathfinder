@@ -38,7 +38,11 @@ json flowJson(json const& _parameters)
 	Address from{string(_parameters["from"])};
 	Address to{string(_parameters["to"])};
 	Int value{string(_parameters["value"])};
+#if USE_FLOW
+	auto [flow, transfers] = computeFlow(from, to, db.flowGraph(), value);
+#else
 	auto [flow, transfers] = computeFlow(from, to, db.edges(), value);
+#endif
 
 	json output;
 	output["flow"] = to_string(flow);
@@ -137,7 +141,11 @@ void computeFlow(
 	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
 	cerr << "Edges: " << db.m_edges.size() << endl;
 
+#if USE_FLOW
+	auto [flow, transfers] = computeFlow(_source, _sink, db.flowGraph(), _value);
+#else
 	auto [flow, transfers] = computeFlow(_source, _sink, db.edges(), _value);
+#endif
 //	cout << "Flow: " << flow << endl;
 //	cout << "Transfers: " << endl;
 //	for (Edge const& edge: transfers)
