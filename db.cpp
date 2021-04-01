@@ -258,16 +258,16 @@ void DB::transfer(
 			cerr << "Unknown sender safe." << endl;
 			return;
 		}
+		// Regular transfer
+		require(senderSafe->balances[_token] >= _value);
+		senderSafe->balances[_token] -= _value;
 	}
 
 	Safe* receiverSafe = safeMaybe(_to);
 	if (receiverSafe)
 		receiverSafe->balances[_token] += _value;
 	else
-	{
 		cerr << "Unknown receiver safe." << endl;
-		return;
-	}
 
 	if (_from == Address{})
 	{
@@ -277,9 +277,6 @@ void DB::transfer(
 	}
 	else
 	{
-		// Regular transfer
-		require(senderSafe->balances[_token] >= _value);
-		senderSafe->balances[_token] -= _value;
 		// TODO actually only the token
 		// TODO really all of them?
 		updateEdgesFrom(_from);
