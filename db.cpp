@@ -57,7 +57,7 @@ void DB::importFromTheGraph(json const& _safesJson)
 	for (json const& safe: _safesJson)
 	{
 		Safe s;
-		if (safe.contains("organization") && safe["organization"])
+		if (safe.contains("organization") && safe["organization"].is_boolean() && safe["organization"])
 			s.organization = true;
 		Address address = Address(string(safe["id"]));
 		for (auto const& balance: safe["balances"])

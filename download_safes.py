@@ -7,12 +7,15 @@ blockNumber =requests.get('https://blockscout.com/poa/xdai/api?module=block&acti
 
 query="""{
     id
+    organization
     outgoing { limit limitPercentage canSendToAddress userAddress }
     incoming { limit limitPercentage canSendToAddress userAddress }
     balances { amount token { id owner { id } } }
 }""".replace('\n', ' ')
 
-API='https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph'
+#API='https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph'
+API='https://api.thegraph.com/subgraphs/name/circlesubi/circles'
+
 
 lastID = 0
 count = 1000
