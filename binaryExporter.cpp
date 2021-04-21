@@ -30,6 +30,11 @@ void BinaryExporter::write(set<Edge> const& _edges)
 }
 
 
+void BinaryExporter::writeBool(bool _flag)
+{
+	m_file.put(_flag ? 1 : 0);
+}
+
 void BinaryExporter::write(size_t const& _size)
 {
 	require(_size < numeric_limits<uint32_t>::max());
@@ -63,6 +68,7 @@ void BinaryExporter::write(Safe const& _safe)
 	write(_safe.tokenAddress);
 	write(_safe.balances);
 	write(_safe.limitPercentage);
+	writeBool(_safe.organization);
 }
 
 void BinaryExporter::write(Token const& _token)

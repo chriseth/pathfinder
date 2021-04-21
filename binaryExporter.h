@@ -40,6 +40,7 @@ private:
 			write(value);
 		}
 	}
+	void writeBool(bool _flag);
 	void write(std::size_t const& _size);
 	void write(Address const& _address);
 	void write(Int const& _v);

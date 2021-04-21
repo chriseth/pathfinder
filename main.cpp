@@ -3,7 +3,6 @@
 #include "exceptions.h"
 #include "binaryExporter.h"
 #include "binaryImporter.h"
-#include "dbUpdates.h"
 
 #include "json.hpp"
 
@@ -14,6 +13,52 @@ using namespace std;
 using json = nlohmann::json;
 
 DB db;
+
+namespace
+{
+/// @returns the incoming and outgoing trust edges for a given user with limit percentages.
+json adjacenciesJson(string const& _user)
+{
+	Address user{string(_user)};
+
+	json output = json::array();
+	for (auto const& [address, safe]: db.safes)
+		for (auto const& [sendTo, percentage]: safe.limitPercentage)
+			if (sendTo != address && (user == address || user == sendTo))
+				output.push_back({
+					{"user", to_string(sendTo)},
+					{"percentage", percentage},
+					{"trusts", to_string(user == sendTo ? address : user)}
+				});
+	return output;
+}
+
+json flowJson(json const& _parameters)
+{
+	Address from{string(_parameters["from"])};
+	Address to{string(_parameters["to"])};
+	Int value{string(_parameters["value"])};
+#if USE_FLOW
+	auto [flow, transfers] = computeFlow(from, to, db.flowGraph(), value);
+#else
+	auto [flow, transfers] = computeFlow(from, to, db.edges(), value);
+#endif
+
+	json output;
+	output["flow"] = to_string(flow);
+	output["transfers"] = json::array();
+	for (Edge const& t: transfers)
+		output["transfers"].push_back(json{
+			{"from", to_string(t.from)},
+			{"to", to_string(t.to)},
+			{"token", to_string(t.token)},
+			{"tokenOwner", to_string(db.token(t.token).safeAddress)},
+			{"value", to_string(t.capacity)}
+		});
+	return output;
+}
+
+}
 
 extern "C"
 {
@@ -33,7 +78,7 @@ size_t edgeCount()
 
 void delayEdgeUpdates()
 {
-	cout << "Delaying edge updates." << endl;
+	cerr << "Delaying edge updates." << endl;
 	db.delayEdgeUpdates();
 }
 
@@ -45,6 +90,11 @@ void performEdgeUpdates()
 void signup(char const* _user, char const* _token)
 {
 	db.signup(Address(string(_user)), Address(string(_token)));
+}
+
+void organizationSignup(char const* _organization)
+{
+	db.organizationSignup(Address(string(_organization)));
 }
 
 void trust(char const* _canSendTo, char const* _user, int _limitPercentage)
@@ -66,45 +116,14 @@ void transfer(char const* _token, char const* _from, char const* _to, char const
 char const* adjacencies(char const* _user)
 {
 	static string retVal;
-	Address user{string(_user)};
-
-	json output = json::array();
-	for (auto const& [address, safe]: db.safes)
-		for (auto const& [sendTo, percentage]: safe.limitPercentage)
-			if (sendTo != address && (user == address || user == sendTo))
-				output.push_back({
-					{"user", to_string(sendTo)},
-					{"percentage", percentage},
-					{"trusts", to_string(user == sendTo ? address : user)}
-				});
-	retVal = output.dump();
+	retVal = adjacenciesJson(string(_user)).dump();
 	return retVal.c_str();
 }
 
 char const* flow(char const* _input)
 {
 	static string retVal;
-
-	json parameters = json::parse(string(_input));
-	Address from{string(parameters["from"])};
-	Address to{string(parameters["to"])};
-	Int value{string(parameters["value"])};
-	auto [flow, transfers] = computeFlow(from, to, db.edges(), value);
-
-	json output;
-	output["flow"] = to_string(flow);
-	output["transfers"] = json::array();
-	for (Edge const& t: transfers)
-		output["transfers"].push_back(json{
-			{"from", to_string(t.from)},
-			{"to", to_string(t.to)},
-			{"token", to_string(t.token)},
-			{"tokenOwner", to_string(db.token(t.token).safeAddress)},
-			{"value", to_string(t.capacity)}
-		});
-
-	retVal = output.dump();
-
+	retVal = flowJson(json::parse(string(_input))).dump();
 	return retVal.c_str();
 }
 }
@@ -120,9 +139,13 @@ void computeFlow(
 	size_t blockNumber{};
 	DB db;
 	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
-	cout << "Edges: " << db.m_edges.size() << endl;
+	cerr << "Edges: " << db.m_edges.size() << endl;
 
+#if USE_FLOW
+	auto [flow, transfers] = computeFlow(_source, _sink, db.flowGraph(), _value);
+#else
 	auto [flow, transfers] = computeFlow(_source, _sink, db.edges(), _value);
+#endif
 //	cout << "Flow: " << flow << endl;
 //	cout << "Transfers: " << endl;
 //	for (Edge const& edge: transfers)
@@ -155,7 +178,7 @@ void importDB(string const& _safesJson, string const& _dbDat)
 	string blockNumberStr(safesJson["blockNumber"]);
 	size_t blockNumber(size_t(stoi(blockNumberStr, nullptr, 0)));
 	require(blockNumber > 0);
-	cout << "Block number: " << blockNumber << endl;
+	cerr << "Block number: " << blockNumber << endl;
 
 	DB db;
 	db.importFromTheGraph(safesJson["safes"]);
@@ -266,10 +289,69 @@ void applyDiff(string const& _oldEdges, string const& _diff, string const& _newE
 }
 */
 
+void jsonMode()
+{
+	map<string, function<json(json const&)>> functions{
+		{"loaddb", [](json const& _input) {
+			ifstream instream{string{_input["file"]}};
+			size_t blockNumber;
+			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
+			return json{{"blockNumber", blockNumber}};
+		}},
+		{"flow", [](json const& _input) { return flowJson(_input); }},
+		{"adjacencies", [](json const& _input) { return json{{"adjacencies", adjacenciesJson(_input["user"])}}; }},
+		{"edgeCount", [](json const&) { return json{{"edgeCount", db.edges().size()}}; }},
+		{"delayEdgeUpdates", [](json const&) { db.delayEdgeUpdates(); return json{}; }},
+		{"performEdgeUpdates", [](json const&) { db.performEdgeUpdates(); return json{}; }},
+		{"signup", [](json const& _input) {
+			db.signup(Address(_input["user"]), Address(_input["token"]));
+			return json{};
+		}},
+		{"organizationSignup", [](json const& _input) {
+			db.organizationSignup(Address(_input["organization"]));
+			return json{};
+		}},
+		{"trust", [](json const& _input) {
+			db.trust(Address(_input["canSendTo"]), Address(_input["user"]), uint32_t(_input["limitPercentage"]));
+			return json{};
+		}},
+		{"transfer", [](json const& _input) {
+			db.transfer(Address(_input["token"]), Address(_input["from"]), Address(_input["to"]), Int(string(_input["value"])));
+			return json{};
+		}}
+	};
+	while (std::cin)
+	{
+		string line;
+		getline(std::cin, line);
+		json input = json::parse(line);
+		string cmd = input["cmd"];
+		json id = input["id"];
+		json output;
+		if (functions.count(cmd))
+		{
+			try
+			{
+				output = functions.at(cmd)(input);
+			}
+			catch (...)
+			{
+				output = json{{"error", "Exception occurred."}};
+			}
+		}
+		else
+			output = json{{"error", "Command not found."}};
+		output["id"] = id;
+		cout << output.dump() << endl;
+	}
+}
+
 int main(int argc, char const** argv)
 {
 	if (argc == 4 && argv[1] == string{"--importDB"})
 		importDB(argv[2], argv[3]);
+	else if (argc == 2 && argv[1] == string{"--json"})
+		jsonMode();
 //	else if (argc == 4 && argv[1] == string{"--dbToEdges"})
 //		dbToEdges(argv[2], argv[3]);
 //	else if (argc == 5 && argv[1] == string{"--computeDiff"})
@@ -285,6 +367,7 @@ int main(int argc, char const** argv)
 	{
 		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.dat>" << endl;
 		cerr << "Options: " << endl;
+		cerr << "  --json                                     JSON mode via stdin/stdout." << endl;
 		cerr << "  [--flow] <from> <to> <value> <db.dat>      Compute max flow up to <value> and output transfer steps in json." << endl;
 		cerr << "  --importDB <safes.json> <db.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
 		cerr << "  --dbToEdges <db.dat> <edges.dat>           Import safes with trust edges and generate transfer limit graph." << endl;

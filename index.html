@@ -115,6 +115,7 @@ let setupWorker = function() {
 
     pathfinder.loadDB = async function(db) { return await callWorker('loadDB', [db], [db]); };
     pathfinder.signup = async function(user, token) { return await callWorker('signup', [user, token]); };
+    pathfinder.organizationSgnup = async function(organization) { return await callWorker('organizationSignup', [organization]); };
     pathfinder.trust = async function(canSendTo, user, limit) { return await callWorker('trust', [canSendTo, user, limit]); };
     pathfinder.transfer = async function(token, from, to, value) { return await callWorker('transfer', [token, from, to, value]); };
     pathfinder.edgeCount = async function() { return await callWorker('edgeCount', []); };
@@ -137,6 +138,15 @@ let setupWorker = function() {
             delete callPromises[message.data.callID];
         }
     });
+};
+
+let setupServer = async function() {
+    pathfinder.edgeCount = async function() { return (await (await fetch('/status')).json())['edges']; };
+    pathfinder.adjacencies = async function(input) { return (await (await fetch('/adjacencies/' + input)).text()); };
+    pathfinder.flow = async function(input) { return await (await fetch('/flow', {method: 'POST', body: input})).text(); };
+
+    document.getElementById('status').innerText = "Up to date.";
+    document.getElementById("edgeCount").innerText = await pathfinder.edgeCount();
 };
 
 
@@ -206,11 +216,12 @@ let updateSinceBlock = async function(lastKnownBlock) {
     // Process all hub events first and then the transfer,
     // so we can properly filter out unrelated transfers.
     let signupID = ethers.utils.id("Signup(address,address)");
+    let organizationSignupID = ethers.utils.id("OrganizationSignup(address)");
     let trustID = ethers.utils.id("Trust(address,address,uint256)");
     let res = await provider.getLogs({
         fromBlock: lastKnownBlock,
         address: hubContract.address,
-        topics: [[signupID, trustID]]
+        topics: [[signupID, organizationSignupID, trustID]]
     });
     console.log("Number of logs from hub to process: " + res.length)
     let hubEventContainer = document.getElementById('hubEvent')
@@ -219,6 +230,8 @@ let updateSinceBlock = async function(lastKnownBlock) {
         try {
             if (log.topics[0] == signupID) {
                 await pathfinder.signup(uintToAddress(log.topics[1]), uintToAddress(log.data));
+            } else if (log.topics[0] == organizationSignupID) {
+                await pathfinder.organizationSignup(uintToAddress(log.topics[1]));
             } else if (log.topics[0] == trustID) {
                 await pathfinder.trust(uintToAddress(log.topics[1]), uintToAddress(log.topics[2]), log.data - 0)
             }
@@ -261,6 +274,11 @@ let setupEventListener = async function() {
     hubContract.on("Signup", async (user, token) => {
         console.log(`signup ${user} ${token}`);
         await pathfinder.signup(user, token);
+        // TODO block number?
+    });
+    hubContract.on("OrganizationSignup", async (organization) => {
+        console.log(`organization signup ${organization}`);
+        await pathfinder.organizationSignup(organization);
         // TODO block number?
     });
     provider.on({ topics: [ ethers.utils.id("Transfer(address,address,uint256)") ] }, async (log) => {
