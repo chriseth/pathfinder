@@ -3,6 +3,7 @@
 #include "exceptions.h"
 #include "binaryExporter.h"
 #include "binaryImporter.h"
+#include "encoding.h"
 
 #include "json.hpp"
 
@@ -294,6 +295,13 @@ void jsonMode()
 	map<string, function<json(json const&)>> functions{
 		{"loaddb", [](json const& _input) {
 			ifstream instream{string{_input["file"]}};
+			size_t blockNumber;
+			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
+			return json{{"blockNumber", blockNumber}};
+		}},
+		{"loaddbStream", [](json const& _input) {
+			string data = fromHexStream(_input["data"]);
+			istringstream instream{data};
 			size_t blockNumber;
 			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
 			return json{{"blockNumber", blockNumber}};
