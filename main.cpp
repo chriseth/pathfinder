@@ -34,6 +34,26 @@ json adjacenciesJson(string const& _user)
 	return output;
 }
 
+string debugData(vector<Edge> const& _transfers)
+{
+	string out;
+	for (Edge const& t: _transfers)
+	{
+		out +=
+			"Transfer " + to_string(t.from) + " -> " + to_string(t.to) +
+			" of " + to_string(t.capacity) + " tokens of " +
+			to_string(db.token(t.token).safeAddress) + "\n";
+		out +=
+			"to is org: " + (db.safe(t.to).organization ? "- true"s : "- false"s) +
+			" trust perc: " + to_string(db.safe(t.from).sendToPercentage(t.to)) +
+			" sender token balance from " + to_string(db.safe(t.from).balance(db.safe(t.from).tokenAddress)) +
+			" to " + to_string(db.safe(t.to).balance(db.safe(t.from).tokenAddress)) +
+			" receiver token receiver balance " + to_string(db.safe(t.to).balance(db.safe(t.to).tokenAddress)) +
+			"\n";
+	}
+	return out;
+}
+
 json flowJson(json const& _parameters)
 {
 	Address from{string(_parameters["from"])};
@@ -56,6 +76,7 @@ json flowJson(json const& _parameters)
 			{"tokenOwner", to_string(db.token(t.token).safeAddress)},
 			{"value", to_string(t.capacity)}
 		});
+	output["debug"] = debugData(transfers);
 	return output;
 }
 

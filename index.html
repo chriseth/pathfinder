@@ -50,7 +50,9 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 </div>
 </div>
 <button id="compute">compute</button><span id="validation"></span><br/>
-<button id="explore">explore</button> trust graph of sender
+<button id="explore">explore</button> trust graph of sender<br/>
+<button id="showDebug">debug</button>
+<pre id='debug' style="display: none; "></pre>
 <p>Value: <span id="flow">?</span></p>
 <p>Transfers:</p>
 <div><div id="graph" style="width: 100%; height: 300px;"></div></div>
@@ -58,6 +60,8 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 <script type="text/javascript" language="javascript">
 const CirclesAPI = 'https://api.circles.garden/api/';
 let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
+
+document.getElementById('showDebug').onclick = function() { document.getElementById('debug').style.display = 'block'; }
 
 let queryUser = function(username, callback) {
     var req = new XMLHttpRequest();
@@ -159,6 +163,9 @@ const hubAbi = [
     "function transfer(address to, uint amount)",
     "function checkSendLimit(address tokenOwner, address src, address dest) view returns (uint256)",
     "function limits(address,address) view returns (uint256)",
+    "function organizations(address) view returns (bool)",
+    "function userToToken(address) view returns (address)",
+    "function tokenToUser(address) view returns (address)",
     "event Signup(address indexed user, address token)",
     "event OrganizationSignup(address indexed organization)",
     "event Trust(address indexed canSendTo, address indexed user, uint256 limit)",
@@ -200,8 +207,32 @@ let validateTransfers = async function(transfers) {
         document.getElementById("validation").innerText = 'validated';
     } catch {
         document.getElementById("validation").innerText = 'invalid';
+        findReasonForInvalid(transfers);
+    }
+};
+
+let findReasonForInvalid = async function(transfers) {
+    let txt = ''
+    let balance = async function(tokenUser, user) {
+        let token = await hubContract.userToToken(tokenUser);
+        if (token == "0x0000000000000000000000000000000000000000") {
+            return 0;
+        } else {
+            return await (new ethers.Contract(token, tokenAbi, provider)).balanceOf(user);
+        }
+    }
+    for (step of transfers) {
+        let isOrg = await hubContract.organizations(step.to);
+        let trustPercentage = await hubContract.limits(step.to, step.from);
+        let stokenToBalance = await balance(step.from, step.to);
+        let stokenFromBalance = await balance(step.from, step.from);
+        let rectokenRecBalance = await balance(step.to, step.to);
+        txt += `Transfer ${step.from} -> ${step.to} of ${step.value} tokens of ${step.tokenOwner}\n`;
+        txt += `to is org: ${isOrg} trust perc: ${trustPercentage} sender token balance from ${stokenFromBalance} to ${stokenToBalance}`
+        txt += ` receiver token receiver balance ${rectokenRecBalance}\n`;
     }
 
+    document.getElementById('debug').innerText += "\nDEBUG from contracts:\n" + txt;
 };
 
 let uintToAddress = function(value) {
@@ -375,6 +406,9 @@ let translateTokens = function(tokens) {
 };
 
 let formatValue = function(value) {
+    if (typeof value != typeof "") {
+        value = value.toString();
+    }
     while (value.length <= 18)
         value = '0' + value;
     return value.substr(0, value.length - 18) + '.' + value.substr(value.length - 18, 2);
@@ -475,6 +509,9 @@ document.getElementById("compute").onclick = async function() {
         value = unformatValue(value);
     }
     let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value})));
+    if (data.debug) {
+        document.getElementById('debug').innerText = "DEBUG from pathfinder:\n" + data.debug;
+    }
     document.getElementById("flow").innerText = formatValue(data.flow);
     data.transfers = data.transfers || [];
     document.getElementById("steps").innerHTML = '';
