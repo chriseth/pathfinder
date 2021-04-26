@@ -66,12 +66,21 @@ inline std::ostream& operator<<(std::ostream& os, Int const& _value) { return os
 
 struct Address
 {
-	std::array<uint8_t, 20> address = {};
+	using AddressInternal = std::array<uint8_t, 20>;
+
+	uint32_t id = {};
 	Address() {}
 	explicit Address(std::string const& _hex);
-	bool operator<(Address const& _other) const { return address < _other.address; }
-	bool operator==(Address const& _other) const { return address == _other.address; }
-	bool operator!=(Address const& _other) const { return address != _other.address; }
+	static Address fromInternal(AddressInternal const& _internal);
+
+	bool operator<(Address const& _other) const { return id < _other.id; }
+	bool operator==(Address const& _other) const { return id == _other.id; }
+	bool operator!=(Address const& _other) const { return id != _other.id; }
+
+	AddressInternal toAddress() const { return reverseLookup.at(id); }
+private:
+	static std::map<AddressInternal, uint32_t> lookup;
+	static std::vector<AddressInternal> reverseLookup;
 };
 
 std::string to_string(Address const& _address);

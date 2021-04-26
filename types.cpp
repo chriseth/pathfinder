@@ -6,6 +6,8 @@
 
 using namespace std;
 
+std::map<Address::AddressInternal, uint32_t> Address::lookup;
+std::vector<Address::AddressInternal> Address::reverseLookup;
 
 Int timesTen(Int const& _value)
 {
@@ -167,25 +169,43 @@ string to_string(Int _value)
 
 Address::Address(string const& _hex)
 {
+	AddressInternal internal = {};
 	if (_hex.size() >= 2 && _hex[0] == '0' && _hex[1] == 'x')
 	{
 		require(_hex.size() == 2 + 2 * 20);
 
 		for (size_t i = 2; i < _hex.size(); i += 2)
-			address[i / 2 - 1] = (fromHex(_hex[i]) << 4) + fromHex(_hex[i + 1]);
+			internal[i / 2 - 1] = (fromHex(_hex[i]) << 4) + fromHex(_hex[i + 1]);
 	}
 	else
 	{
 		Int number(_hex);
 		for (size_t i = 0; i < 20; i++)
-			address[i] = (number.data[3 - (i + 12) / 8] >> (56 - 8 * ((i + 12) % 8))) & 0xff;
+			internal[i] = (number.data[3 - (i + 12) / 8] >> (56 - 8 * ((i + 12) % 8))) & 0xff;
 	}
+	*this = Address::fromInternal(internal);
+}
+
+Address Address::fromInternal(Address::AddressInternal const& _internal)
+{
+	Address addr;
+	auto it = lookup.find(_internal);
+	if (it == lookup.end())
+	{
+		addr.id = lookup.size();
+		lookup[_internal] = addr.id;
+		reverseLookup.resize(max(size_t(addr.id + 1), reverseLookup.size()));
+		reverseLookup[addr.id] = _internal;
+	}
+	else
+		addr.id = it->second;
+	return addr;
 }
 
 string to_string(Address const& _address)
 {
 	string lower;
-	for (uint8_t c: _address.address)
+	for (uint8_t c: _address.toAddress())
 	{
 		lower.push_back(toHex(c >> 4));
 		lower.push_back(toHex(c & 0xf));
