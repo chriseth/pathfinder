@@ -183,15 +183,10 @@ void computeFlow(
 			{"token", to_string(transfer.token)},
 			{"value", to_string(transfer.capacity)}
 		});
-
-	log_debug(json{
-            {"maxFlowValue", to_string(flow)},
-            {"transferSteps", move(transfersJson)}
-    }.dump().c_str());
-    /*cout << json{
-        {"maxFlowValue", to_string(flow)},
-        {"transferSteps", move(transfersJson)}
-    } << endl;*/
+	cout << json{
+		{"maxFlowValue", to_string(flow)},
+		{"transferSteps", move(transfersJson)}
+	} << endl;
 }
 
 
@@ -376,9 +371,7 @@ void jsonMode()
 		else
 			output = json{{"error", "Command not found."}};
 		output["id"] = id;
-
-		log_debug(output.dump().c_str());
-		// cout << output.dump() << endl;
+		cout << output.dump() << endl;
 	}
 }
 
