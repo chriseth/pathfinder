@@ -2,6 +2,7 @@
 
 #include "encoding.h"
 #include "exceptions.h"
+#include "log.h"
 
 using namespace std;
 
@@ -23,7 +24,8 @@ void BinaryExporter::write(set<Edge> const& _edges)
 {
 	writeAddresses(_edges);
 
-	cout << "Exporting " << _edges.size() << " edges and " << m_addresses.size() << " unique addresses." << endl;
+    log_debug("Exporting %lu edges and %zu unique addresses", _edges.size(), m_addresses.size());
+	// cout << "Exporting " << _edges.size() << " edges and " << m_addresses.size() << " unique addresses." << endl;
 	write(_edges.size());
 	for (Edge const& edge: _edges)
 		write(edge);

@@ -17,8 +17,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_compile_options(-Wall)
 add_compile_options(-Wextra)
-add_compile_options(-Werror)
-add_compile_options(-pedantic)
+# add_compile_options(-Werror)
+# add_compile_options(-pedantic)
+add_compile_options(-fpermissive)
 add_compile_options(-Wno-unknown-pragmas)
 add_compile_options(-Wimplicit-fallthrough)
 add_compile_options(-Wsign-conversion)
@@ -90,6 +91,8 @@ set(
 	main.cpp
 	types.cpp
 	types.h
+		log.cpp
+	log.h
 )
 
 add_executable(pathfinder ${sources})

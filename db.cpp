@@ -7,6 +7,7 @@
 #include "json.hpp"
 
 #include <fstream>
+#include "log.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -113,12 +114,14 @@ Int DB::limit(Address const& _user, Address const& _canSendTo) const
 
 void DB::computeEdges()
 {
-	cerr << "Computing Edges from " << safes.size() << " safes..." << endl;
-	m_edges.clear();
+    log_info("Computing Edges from %lu safes", safes.size());
+
+    m_edges.clear();
 	m_flowGraph.clear();
 	for (auto const& safe: safes)
 		computeEdgesFrom(safe.first);
-	cerr << "Created " << m_edges.size() << " edges..." << endl;
+
+    log_info("Created  %lu edges...", m_edges.size());
 }
 
 void DB::computeEdgesFrom(Address const& _user)
@@ -192,7 +195,8 @@ void DB::computeEdgesTo(Address const& _sendTo)
 
 void DB::signup(Address const& _user, Address const& _token)
 {
-	cerr << "Signup: " << _user << " with token " << _token << endl;
+	//cerr << "Signup: " << _user << " with token " << _token << endl;
+    log_trace("Signup: %s with token %s", _user, _token);
 	// TODO balances empty at start?
 	if (!safeMaybe(_user))
 		safes[_user] = Safe{_token, {}, {}, false};
@@ -202,14 +206,16 @@ void DB::signup(Address const& _user, Address const& _token)
 
 void DB::organizationSignup(Address const& _organization)
 {
-	cerr << "Organization signup: " << _organization << endl;
+	//cerr << "Organization signup: " << _organization << endl;
+    log_trace("Organization signup: %s", _organization);
 	if (!safeMaybe(_organization))
 		safes[_organization] = Safe{{}, {}, {}, true};
 }
 
 void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage)
 {
-	cerr << "Trust change: " << _user << " send to " << _canSendTo << ": " << _limitPercentage << "%" << endl;
+	//cerr << "Trust change: " << _user << " send to " << _canSendTo << ": " << _limitPercentage << "%" << endl;
+    log_trace("Trust change: '%s' can send to '%s' limit %i", _user, _canSendTo, _limitPercentage);
 	require(_limitPercentage <= 100);
 
 	if (Safe* safe = safeMaybe(_user))
@@ -224,9 +230,12 @@ void DB::trust(Address const& _canSendTo, Address const& _user, uint32_t _limitP
 		//updateEdges(_user, _canSendTo, safe->tokenAddress);
 	}
 	else
-		cerr << "Unknown safe." << endl;
+	{
+        log_error("Couldn't find a safe for user '%s' in the db.", _user);
+    }
 
-	cerr << "Trust change update complete." << endl;
+    log_trace("Trust change update complete.");
+	//cerr << "Trust change update complete." << endl;
 }
 
 void DB::transfer(
@@ -236,26 +245,29 @@ void DB::transfer(
 	Int const& _value
 )
 {
-	cerr << "Transfer: " << _value << ": " << _from << " -> " << _to << " [" << _token << "]" << endl;
+    log_trace("Transfer: '%i' ERC20 from '%s' to '%s'. Token: %s", _value, _from, _to, _token);
 	// This is a generic ERC20 event and might be unrelated to the
 	// Circles system.
 	Token* token = tokenMaybe(_token);
 	if (!token || _value == Int{})
 	{
-		if (!token)
-			cerr << "Token unknown." << endl;
+		if (!token) {
+            log_debug("Token '%s' is unknown.", _token);
+        }
 		return;
 	}
 
 	Safe* senderSafe = nullptr;
 	if (_from == Address{})
-		require(_to == token->safeAddress);
+	{
+	    require(_to == token->safeAddress);
+	}
 	else
 	{
 		senderSafe = safeMaybe(_from);
 		if (!senderSafe)
 		{
-			cerr << "Unknown sender safe." << endl;
+            log_debug("Unknown sender safe: '%s'", _from);
 			return;
 		}
 		// Regular transfer
@@ -265,9 +277,13 @@ void DB::transfer(
 
 	Safe* receiverSafe = safeMaybe(_to);
 	if (receiverSafe)
-		receiverSafe->balances[_token] += _value;
+	{
+        receiverSafe->balances[_token] += _value;
+    }
 	else
-		cerr << "Unknown receiver safe." << endl;
+	{
+        log_debug("Unknown receiver safe: '%s'", _from);
+    }
 
 	if (_from == Address{})
 	{
@@ -284,7 +300,7 @@ void DB::transfer(
 		updateEdgesTo(_from);
 		updateEdgesTo(_to);
 	}
-	cerr << "Update following transfer complete." << endl;
+    log_info("Update complete for Transfer: '%i' ERC20 from '%s' to '%s'. Token: %s", _value, _from, _to, _token);
 }
 
 void DB::updateEdgesFrom(Address const& _from)
@@ -292,7 +308,7 @@ void DB::updateEdgesFrom(Address const& _from)
 	if (m_delayEdgeUpdates)
 		return;
 
-	cerr << "Updating edges from " << _from << endl;
+    log_debug("Updating edges from '%s' ...", _from);
 
 	// TODO this loop can be optimized because of the sort order.
 	for (auto it = m_edges.begin(); it != m_edges.end();)
@@ -302,16 +318,18 @@ void DB::updateEdgesFrom(Address const& _from)
 			++it;
 
 	m_flowGraph.erase(_from);
-	cerr << "erasing pseudo-edges..." <<endl;
+
+	log_debug("Erasing pseudo-edges...");
 	m_flowGraph.erase(
 		m_flowGraph.lower_bound(make_pair(_from, Address{})),
 		m_flowGraph.upper_bound(make_pair(_from, Address{"0xffffffffffffffffffffffffffffffffffffffff"s}))
 	);
-	cerr << "done" << endl;
+    log_debug("Erasing pseudo-edges... Done.");
 
+    log_debug("Compute edges from '%s' ...", _from);
 	computeEdgesFrom(_from);
-
-	cerr << "Done." << endl;
+    log_debug("Compute edges from '%s' ... Done.", _from);
+    log_debug("Updating edges from '%s' ... Done.", _from);
 }
 
 void DB::updateEdgesTo(Address const& _to)
@@ -319,20 +337,25 @@ void DB::updateEdgesTo(Address const& _to)
 	if (m_delayEdgeUpdates)
 		return;
 
-	cerr << "Updating edges to " << _to << endl;
-	for (auto it = m_edges.begin(); it != m_edges.end();)
-		if (it->to == _to)
-			it = m_edges.erase(it);
-		else
-			++it;
-	cerr << "erasing pseudo-edges..." <<endl;
+    log_debug("Updating edges to '%s' ...", _to);
+    log_debug("Erasing pseudo-edges...");
+	for (auto it = m_edges.begin(); it != m_edges.end();) {
+        if (it->to == _to)
+            it = m_edges.erase(it);
+        else
+            ++it;
+    }
+
+    log_debug("Erasing pseudo-edges...");
 	// TODO this does not leave the graph in a clean state, but
 	// it is probably enough.
-	for (auto& [node, targets]: m_flowGraph)
-		targets.erase(_to);
-	cerr << "done" << endl;
+	for (auto& [node, targets]: m_flowGraph) {
+        targets.erase(_to);
+    }
+    log_debug("Erasing pseudo-edges... Done.");
 
+    log_debug("Compute edges to '%s' ...", _to);
 	computeEdgesTo(_to);
-
-	cerr << "Done." << endl;
+    log_debug("Compute edges to '%s' ... Done.", _to);
+    log_debug("Updating edges to '%s' ... Done.", _to);
 }

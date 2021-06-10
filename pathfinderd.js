@@ -99,7 +99,7 @@ else
 
 const CirclesAPI = 'https://api.circles.garden/api/';
 let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
-const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
+const provider = new ethers.providers.JsonRpcProvider(process.env.json_rpc ?? 'https://xdai-archive.blockscout.com');
 
 const hubAbi = [
     "function name() view returns (string)",

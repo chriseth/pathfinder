@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <sstream>
+#include "log.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -100,7 +101,8 @@ size_t edgeCount()
 
 void delayEdgeUpdates()
 {
-	cerr << "Delaying edge updates." << endl;
+	// cerr << "Delaying edge updates." << endl;
+    log_trace("Delaying edge updates");
 	db.delayEdgeUpdates();
 }
 
@@ -161,7 +163,8 @@ void computeFlow(
 	size_t blockNumber{};
 	DB db;
 	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
-	cerr << "Edges: " << db.m_edges.size() << endl;
+	//cerr << "Edges: " << db.m_edges.size() << endl;
+    log_trace("Edges: %lu", db.m_edges.size());
 
 #if USE_FLOW
 	auto [flow, transfers] = computeFlow(_source, _sink, db.flowGraph(), _value);
@@ -183,10 +186,15 @@ void computeFlow(
 			{"token", to_string(transfer.token)},
 			{"value", to_string(transfer.capacity)}
 		});
-	cout << json{
-		{"maxFlowValue", to_string(flow)},
-		{"transferSteps", move(transfersJson)}
-	} << endl;
+
+	log_debug(json{
+            {"maxFlowValue", to_string(flow)},
+            {"transferSteps", move(transfersJson)}
+    }.dump().c_str());
+    /*cout << json{
+        {"maxFlowValue", to_string(flow)},
+        {"transferSteps", move(transfersJson)}
+    } << endl;*/
 }
 
 
@@ -200,7 +208,8 @@ void importDB(string const& _safesJson, string const& _dbDat)
 	string blockNumberStr(safesJson["blockNumber"]);
 	size_t blockNumber(size_t(stoi(blockNumberStr, nullptr, 0)));
 	require(blockNumber > 0);
-	cerr << "Block number: " << blockNumber << endl;
+
+    log_debug("Block number: %lu", blockNumber);
 
 	DB db;
 	db.importFromTheGraph(safesJson["safes"]);
@@ -371,7 +380,9 @@ void jsonMode()
 		else
 			output = json{{"error", "Command not found."}};
 		output["id"] = id;
-		cout << output.dump() << endl;
+
+		log_debug(output.dump().c_str());
+		// cout << output.dump() << endl;
 	}
 }
 
