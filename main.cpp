@@ -9,7 +9,6 @@
 
 #include <iostream>
 #include <sstream>
-#include "log.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -101,8 +100,7 @@ size_t edgeCount()
 
 void delayEdgeUpdates()
 {
-	// cerr << "Delaying edge updates." << endl;
-    log_trace("Delaying edge updates");
+	cerr << "Delaying edge updates." << endl;
 	db.delayEdgeUpdates();
 }
 
@@ -163,8 +161,7 @@ void computeFlow(
 	size_t blockNumber{};
 	DB db;
 	tie(blockNumber, db) = BinaryImporter(stream).readBlockNumberAndDB();
-	//cerr << "Edges: " << db.m_edges.size() << endl;
-    log_trace("Edges: %lu", db.m_edges.size());
+	cerr << "Edges: " << db.m_edges.size() << endl;
 
 #if USE_FLOW
 	auto [flow, transfers] = computeFlow(_source, _sink, db.flowGraph(), _value);
@@ -208,8 +205,7 @@ void importDB(string const& _safesJson, string const& _dbDat)
 	string blockNumberStr(safesJson["blockNumber"]);
 	size_t blockNumber(size_t(stoi(blockNumberStr, nullptr, 0)));
 	require(blockNumber > 0);
-
-    log_debug("Block number: %lu", blockNumber);
+	cerr << "Block number: " << blockNumber << endl;
 
 	DB db;
 	db.importFromTheGraph(safesJson["safes"]);
