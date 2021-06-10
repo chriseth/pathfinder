@@ -43,6 +43,14 @@ inline uint8_t fromHex(char _c)
 	return {};
 }
 
+inline std::string fromHexStream(std::string const& _input)
+{
+	std::string out;
+	for (size_t i = 0; i + 1 < _input.size(); i += 2)
+		out.push_back(static_cast<char>((fromHex(_input[i]) << 4) | fromHex(_input[i + 1])));
+	return out;
+}
+
 inline char toHex(uint8_t _c)
 {
 	require(_c <= 0x1f);

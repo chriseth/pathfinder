@@ -5,27 +5,22 @@ let ethers = require('ethers')
 let stream = true;
 let pathfinder = {};
 
-let download = function(url, dest, cb) {
+let download = function(url) {
     return new Promise((resolve, reject) => {
-        const file = fs_cb.createWriteStream(dest);
-        const request = https.get(url, (response) => {
-            if (response.statusCode !== 200) {
-                reject('Response status was ' + response.statusCode);
-            }
-            response.pipe(file);
-        });
-        file.on('finish', () => file.close(() => resolve()));
-        request.on('error', (err) => {
-            fs.unlink(dest);
-            reject(err.message);
-        });
-        file.on('error', (err) => {
-            fs.unlink(dest);
-            reject(err.message);
+        https.get(url, function(res) {
+            var data = [];
+            res.on('data', function(chunk) {
+                data.push(chunk);
+            }).on('end', function() {
+                resolve(Buffer.concat(data));
+            }).on('error', function(err) {
+                reject(err.message);
+            });
         });
     });
-};
+}
 
+let pathfinder_
 if (stream)
 {
     let latestID = 0;
@@ -67,6 +62,7 @@ if (stream)
     });
     pathfinder = {
         loadDB: async (file) => { return (await callJson('loaddb', {file: file})).blockNumber; },
+        loadDBStream: async (data) => { return (await callJson('loaddbStream', {data: data.toString('hex')})).blockNumber; },
         signup: async (user, token) => { await callJson('signup', {user: user, token: token}); },
         organizationSignup: async (organization) => { await callJson('organizationSignup', {organization: organization}); },
         trust: async (canSendTo, user, limitPercentage) => { await callJson('trust', {canSendTo: canSendTo, user: user, limitPercentage: limitPercentage}); },
@@ -85,7 +81,7 @@ if (stream)
 }
 else
 {
-    let pathfinder_ = require('./emscripten_build/pathfinder.js')
+    pathfinder_ = require('./emscripten_build/pathfinder.js')
     pathfinder = {
         loadDB: pathfinder_.cwrap("loadDB", 'number', ['array', 'number']),
         signup: pathfinder_.cwrap("signup", null, ['string', 'string']),
@@ -137,20 +133,19 @@ let uintToAddress = function(value) {
 
 let loadDB = async function() {
     console.log("Downloading database file...")
-    await download("https://chriseth.github.io/pathfinder/db.dat", "./db.dat");
-
-    if (stream)
-	{
-        return await pathfinder.loadDB('db.dat');
+    let db = await download("https://chriseth.github.io/pathfinder/db.dat");
+    console.log(`Got ${db.byteLength} bytes.`)
+    let latestBlockNumber = -1;
+    if (stream) {
+        latestBlockNumber = await pathfinder.loadDBStream(db);
+    } else {
+        let length = db.byteLength;
+        var ptr = pathfinder_._malloc(length);
+        var heapBytes = new Uint8Array(pathfinder_.HEAPU8.buffer, ptr, length);
+        heapBytes.set(new Uint8Array(db));
+        latestBlockNumber = pathfinder_._loadDB(heapBytes.byteOffset, length);
+        pathfinder_._free(ptr);
     }
-
-    let db = await fs.readFile('db.dat');
-    let length = db.byteLength;
-    var ptr = pathfinder_._malloc(length);
-    var heapBytes = new Uint8Array(pathfinder_.HEAPU8.buffer, ptr, length);
-    heapBytes.set(new Uint8Array(db));
-    let latestBlockNumber = pathfinder_._loadDB(heapBytes.byteOffset, length);
-    pathfinder_._free(ptr);
     console.log("loaded, latest block: " + latestBlockNumber);
     update();
     return latestBlockNumber;

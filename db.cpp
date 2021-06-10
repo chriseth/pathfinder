@@ -57,8 +57,7 @@ void DB::importFromTheGraph(json const& _safesJson)
 	for (json const& safe: _safesJson)
 	{
 		Safe s;
-		if (safe.contains("organization") && safe["organization"].is_boolean() && safe["organization"])
-			s.organization = true;
+		s.organization = (safe.contains("organization") && safe["organization"].is_boolean() && safe["organization"]);
 		Address address = Address(string(safe["id"]));
 		for (auto const& balance: safe["balances"])
 		{
@@ -66,7 +65,7 @@ void DB::importFromTheGraph(json const& _safesJson)
 			Token t{Address(balance["token"]["id"]), Address(balance["token"]["owner"]["id"])};
 			if (t.safeAddress == address)
 				s.tokenAddress = t.address;
-			tokens.insert({t.address, move(t)});
+			tokens.insert({t.address, t});
 			s.balances[t.address] = balanceAmount;
 		}
 		safes[address] = move(s);
@@ -129,7 +128,8 @@ void DB::computeEdgesFrom(Address const& _user)
 		return;
 
 	// Edge from user to their own token, restricted by balance.
-	m_flowGraph[_user][make_pair(_user, safe->tokenAddress)] = safe->balance(safe->tokenAddress);
+	if (safe->tokenAddress != Address{})
+		m_flowGraph[_user][make_pair(_user, safe->tokenAddress)] = safe->balance(safe->tokenAddress);
 
 	// Edges along trust connections.
 	for (auto const& trust: safe->limitPercentage)
@@ -181,7 +181,7 @@ void DB::computeEdgesTo(Address const& _sendTo)
 		}
 		// Edges that send tokens back to their owner.
 		Int balance = safe.balance(tokenAddress);
-		if (balance != Int{})
+		if (balance != Int{} && tokenAddress != Address{})
 		{
 			m_edges.emplace(Edge{sender, _sendTo, tokenAddress, balance});
 			m_flowGraph[sender][make_pair(sender, tokenAddress)] = balance;

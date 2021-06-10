@@ -18,7 +18,7 @@ struct Safe
 	std::map<Address, Int> balances;
 	/// Limit percentage in "send to" direction.
 	std::map<Address, uint32_t> limitPercentage;
-	bool organization;
+	bool organization{false};
 
 	Int balance(Address const& _token) const;
 	uint32_t sendToPercentage(Address const& _sendToUser) const;
