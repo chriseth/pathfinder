@@ -5,7 +5,6 @@
 #include <variant>
 #include <functional>
 #include <algorithm>
-#include "log.h"
 
 using namespace std;
 
@@ -155,14 +154,14 @@ pair<Int, vector<Edge>> computeFlow(
 	Int _requestedFlow
 )
 {
-    log_debug("Computing adjacencies...");
+	cerr << "Computing adjacencies..." << endl;
 #if USE_FLOW
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #else
 	map<Node, map<Node, Int>> adjacencies = computeAdjacencies(_edges);
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #endif
-    log_debug("Number of nodes (including pseudo-nodes): %lu", capacities.size());
+	cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
