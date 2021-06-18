@@ -18,7 +18,8 @@ jobs:
       - name: Convert to binary
         run: |
           ./build/pathfinder --importDB safes.json db.dat
-          cp db.dat /tmp/
+          sha256sum db.dat > db.dat.sha256
+          cp db.dat.* /tmp/
       - name: Push to gh-pages
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
@@ -35,8 +36,8 @@ jobs:
           git checkout -B gh-pages origin/master
           git clean -f -d
           git checkout origin/gh-pages -- emscripten_build/pathfinder.js
-          mv /tmp/db.dat ./
-          git add db.dat emscripten_build/pathfinder.js
+          mv /tmp/db.dat.* ./
+          git add db.dat db.dat.sha256 emscripten_build/pathfinder.js
           git commit -m "Add edges and binary."
 
           git push -f origin gh-pages
