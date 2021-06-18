@@ -99,7 +99,9 @@ else
 
 const CirclesAPI = 'https://api.circles.garden/api/';
 let GraphAPI = 'https://graph.circles.garden/subgraphs/name/CirclesUBI/circles-subgraph';
-const provider = new ethers.providers.JsonRpcProvider('https://xdai-archive.blockscout.com');
+const providerUrl = process.env.RPC_GATEWAY ?? 'https://xdai-archive.blockscout.com';
+console.log("Using rpc gateway:" + providerUrl);
+const provider = new ethers.providers.JsonRpcProvider(providerUrl);
 
 const hubAbi = [
     "function name() view returns (string)",
