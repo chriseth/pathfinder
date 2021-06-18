@@ -315,7 +315,12 @@ void jsonMode()
 {
 	map<string, function<json(json const&)>> functions{
 		{"loaddb", [](json const& _input) {
+
 			ifstream instream{string{_input["file"]}};
+			if (!instream.good()) {
+                cerr << "Loading db from '" << _input["file"] << "' failed. Does the file exist?" << endl;
+                return json{{"error", "Cannot open stream to read."}};
+			}
 			size_t blockNumber;
 			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
 			return json{{"blockNumber", blockNumber}};
@@ -369,7 +374,9 @@ void jsonMode()
 			}
 		}
 		else
-			output = json{{"error", "Command not found."}};
+		{
+		    output = json{{"error", "Command not found."}};
+		}
 		output["id"] = id;
 		cout << output.dump() << endl;
 	}
