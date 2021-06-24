@@ -331,6 +331,10 @@ void jsonMode()
 			tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
 			return json{{"blockNumber", blockNumber}};
 		}},
+		{"dumpdb", [](json const& _input) {
+			BinaryExporter(string{_input["file"]}).write(size_t(_input["blockNumber"]), db);
+			return json{};
+		}},
 		{"flow", [](json const& _input) { return flowJson(_input); }},
 		{"adjacencies", [](json const& _input) { return json{{"adjacencies", adjacenciesJson(_input["user"])}}; }},
 		{"edgeCount", [](json const&) { return json{{"edgeCount", db.edges().size()}}; }},
