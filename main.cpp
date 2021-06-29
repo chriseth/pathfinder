@@ -335,6 +335,7 @@ void jsonMode()
 			BinaryExporter(string{_input["file"]}).write(size_t(_input["blockNumber"]), db);
 			return json{};
 		}},
+		{"exportJson", [](json const&) { return db.exportToJson(); }},
 		{"flow", [](json const& _input) { return flowJson(_input); }},
 		{"adjacencies", [](json const& _input) { return json{{"adjacencies", adjacenciesJson(_input["user"])}}; }},
 		{"edgeCount", [](json const&) { return json{{"edgeCount", db.edges().size()}}; }},
@@ -361,6 +362,8 @@ void jsonMode()
 	{
 		string line;
 		getline(std::cin, line);
+		if (line.empty())
+			return;
 		json input = json::parse(line);
 		string cmd = input["cmd"];
 		json id = input["id"];
