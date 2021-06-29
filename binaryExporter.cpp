@@ -127,7 +127,10 @@ void BinaryExporter::writeAddresses(set<Address> const& _addresses)
 
 	write(m_addresses.size());
 	for (auto const& address: m_addresses)
-		m_file.write(reinterpret_cast<char const*>(&(address.address[0])), 20);
+	{
+		Address::AddressInternal addr = address.toAddress();
+		m_file.write(reinterpret_cast<char const*>(&(addr[0])), 20);
+	}
 }
 
 size_t BinaryExporter::indexOf(Address const& _address)
