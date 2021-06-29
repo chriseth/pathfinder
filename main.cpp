@@ -357,6 +357,8 @@ void jsonMode()
 	{
 		string line;
 		getline(std::cin, line);
+		if (line.empty())
+			return;
 		json input = json::parse(line);
 		string cmd = input["cmd"];
 		json id = input["id"];
