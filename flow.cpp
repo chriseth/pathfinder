@@ -48,6 +48,83 @@ map<Node, map<Node, Int>> computeAdjacencies(set<Edge> const& _edges)
 	return adjacencies;
 }
 
+class CopyOnWriteAdjacencies
+{
+public:
+	explicit CopyOnWriteAdjacencies(map<Node, map<Node, Int>> const& _original):
+		m_adjacencies(_original)
+	{}
+
+	size_t size() const { return m_adjacencies.size(); }
+
+	void accessFrom(Node const& _from) const
+	{
+		if (!m_capacities.count(_from))
+			if (m_adjacencies.count(_from))
+				m_capacities[_from] = m_adjacencies.at(_from);
+		m_capacities[_from];
+	}
+
+	Int& access(Node const& _from, Node const& _to)
+	{
+		accessFrom(_from);
+		return m_capacities[_from][_to];
+		/*
+		map<Node, Int>& cap = m_capacities[_from];
+		if (!cap.count(_to))
+		{
+			Int value{};
+			auto it1 = m_adjacencies.find(_from);
+			if (it1 != m_adjacencies.end())
+			{
+				auto it2 = it1->second.find(_to);
+				if (it2 != it1->second.end())
+					value = it2->second;
+			}
+			cap[_to] = value;
+		}
+		return cap[_to];
+		*/
+	}
+
+	size_t count(Node const& _n) const
+	{
+		return (m_capacities.count(_n) || m_adjacencies.count(_n)) ? 1 : 0;
+	}
+
+	vector<pair<Int, Node>> sortedByCapacity(Node const& _from) const
+	{
+		/*
+		if (!m_adjacencies.count(_from) && !m_capacities.count(_from))
+			return {};
+
+		map<Node, Int> const& cap = m_capacities.at(_from);
+		map<Node, Int> const& capOrig = m_adjacencies.at(_from);
+		vector<pair<Int, Node>> result;
+		for (auto&& [node, capacity]: capOrig)
+			if (cap.count(node))
+				result.emplace_back(cap.at(node), node);
+			else
+				result.emplace_back(capacity, node);
+		for (auto&& [node, capacity]: cap)
+			if (!capOrig.count(node))
+				result.emplace_back(capacity, node);
+		*/
+		accessFrom(_from);
+		vector<pair<Int, Node>> result;
+		for (auto&& [node, capacity]: m_capacities.at(_from))
+			result.emplace_back(capacity, node);
+
+		sort(result.begin(), result.end());
+		return result;
+	}
+
+private:
+	map<Node, map<Node, Int>> const& m_adjacencies;
+	map<Node, map<Node, Int>> mutable m_capacities;
+};
+
+
 vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
 {
 	vector<pair<Node, Int>> r(_capacities.begin(), _capacities.end());
@@ -60,9 +137,10 @@ vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
 pair<Int, map<Node, Node>> augmentingPath(
 	Address const& _source,
 	Address const& _sink,
-	map<Node, map<Node, Int>> const& _capacity
+	CopyOnWriteAdjacencies const& _capacity
 )
 {
+	static size_t counter = 0;
 	if (_source == _sink || !_capacity.count(_source))
 		return {Int(0), {}};
 
@@ -72,13 +150,16 @@ pair<Int, map<Node, Node>> augmentingPath(
 
 	while (!q.empty())
 	{
+		counter ++;
 		//cout << "Queue size: " << q.size() << endl;
 		//cout << "Parent relation size: " << parent.size() << endl;
 		auto [node, flow] = q.front();
 		q.pop();
 		if (!_capacity.count(node))
 			continue;
-		for (auto const& [target, capacity]: sortedByCapacity(_capacity.at(node)))
+		for (auto const& [capacity, target]: _capacity.sortedByCapacity(node))
+		{
+			counter ++;
 			if (!parent.count(target) && Int(0) < capacity)
 			{
 				parent[target] = node;
@@ -87,7 +168,9 @@ pair<Int, map<Node, Node>> augmentingPath(
 					return make_pair(move(newFlow), move(parent));
 				q.emplace(target, move(newFlow));
 			}
+		}
 	}
+	cerr << "Counter: " << counter << endl;
 	return {Int(0), {}};
 }
 
@@ -159,12 +242,15 @@ pair<Int, vector<Edge>> computeFlow(
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #else
 	map<Node, map<Node, Int>> adjacencies = computeAdjacencies(_edges);
-	map<Node, map<Node, Int>> capacities = adjacencies;
+	cerr << "COpy" << endl;
+	CopyOnWriteAdjacencies capacities{adjacencies};
+	cerr << "COpy end " << endl;
 #endif
 	cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
+	size_t modi = 0;
 	Int flow{0};
 	while (flow < _requestedFlow)
 	{
@@ -178,8 +264,9 @@ pair<Int, vector<Edge>> computeFlow(
 		for (Node node = _sink; node != Node{_source}; )
 		{
 			Node const& prev = parents[node];
-			capacities[prev][node] -= newFlow;
-			capacities[node][prev] += newFlow;
+			modi ++;
+			capacities.access(prev, node) -= newFlow;
+			capacities.access(node, prev) += newFlow;
 			// TODO still not sure about this one.
 			if (!adjacencies.count(node) || !adjacencies.at(node).count(prev) || adjacencies.at(node).at(prev) == Int(0))
 				// real edge
@@ -190,6 +277,7 @@ pair<Int, vector<Edge>> computeFlow(
 			node = prev;
 		}
 	}
+	cerr << "Number of modifications: " << modi << endl;
 
 	return {flow, extractTransfers(_source, _sink, flow, usedEdges)};
 }

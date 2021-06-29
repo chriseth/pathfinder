@@ -245,8 +245,8 @@ let setupEventListener = async function() {
 
 let startup = async function() {
     latestBlockNumber = await loadDB();
-    await updateSinceBlock(latestBlockNumber);
-    await setupEventListener();
+    //await updateSinceBlock(latestBlockNumber);
+    //await setupEventListener();
     update();
 };
 
