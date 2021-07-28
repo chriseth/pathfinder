@@ -365,27 +365,41 @@ let completeUserInfo = function() {
     }
 };
 
-let fillUsernames = function(addresses, callback) {
-    if (addresses.length == 0)
-        return;
-
-    var req = new XMLHttpRequest();
-    let url = CirclesAPI + 'users/?';
+let createUserQueryString = function(addresses)
+{
+    let query = '';
     for (addr of addresses) {
         if (addr && !userDB[addr]) {
-            url += '&address[]=' + addr;
+            query += '&address[]=' + addr;
         }
+        if (url.length > 1000)
+            break;
     }
-    req.open("GET", url, true);
+    return query;
+};
+
+let fillUsernames = function(addresses, callback) {
+    let queryStr = createUserQueryString(addresses);
+    if (queryStr === '')
+    {
+        completeUserInfo();
+        callback();
+        return;
+    }
+    var req = new XMLHttpRequest();
+    req.open("GET", CirclesAPI + 'users/?' + queryStr, true);
     req.onload = function() {
         if (req.responseText) {
             for (user of JSON.parse(req.responseText).data) {
                 userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
-            completeUserInfo();
-            callback();
+            fillUsernames(addresses, callback);
         }
     };
+    req.onerror = function() {
+        completeUserInfo()
+        callback();
+    }
     req.send(null);
 };
 
