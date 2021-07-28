@@ -369,18 +369,20 @@ let createUserQueryString = function(addresses)
 {
     let query = '';
     for (addr of addresses) {
-        if (addr && !userDB[addr]) {
+        if (addr && !userDB[addr.toLowerCase()]) {
             query += '&address[]=' + addr;
         }
-        if (url.length > 1000)
+        if (query.length > 1000)
             break;
     }
     return query;
 };
 
-let fillUsernames = function(addresses, callback) {
+let fillUsernames = function(addresses, callback, counter) {
+    if (counter === undefined)
+        counter = 5;
     let queryStr = createUserQueryString(addresses);
-    if (queryStr === '')
+    if (queryStr === '' || counter <= 0)
     {
         completeUserInfo();
         callback();
@@ -393,7 +395,7 @@ let fillUsernames = function(addresses, callback) {
             for (user of JSON.parse(req.responseText).data) {
                 userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
-            fillUsernames(addresses, callback);
+            fillUsernames(addresses, callback, counter - 1);
         }
     };
     req.onerror = function() {
