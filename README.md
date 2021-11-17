@@ -61,7 +61,7 @@ Options:
   --dbToEdges <db.dat> <edges.dat>           Import safes with trust edges and generate transfer limit graph.
 ```
 
-The file `safes.json` is an export from TheGraph and can be obtained by running `download_safes.json`.
+The file `safes.json` is an export from TheGraph and can be obtained by running `download_safes.py`.
 
 ### The Website
 

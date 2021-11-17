@@ -85,6 +85,21 @@ void DB::importFromTheGraph(json const& _safesJson)
 	computeEdges();
 }
 
+json DB::exportToJson() const
+{
+	json result;
+	for (auto const& [address, safe]: safes)
+	{
+		json& safeJson = result["safes"][to_string(address)];
+		safeJson["organization"] = safe.organization;
+		for (auto const& [t, balance]: safe.balances)
+			safeJson["balances"][to_string(token(t).safeAddress)] = to_string(balance);
+		for (auto const& [sendTo, percentage]: safe.limitPercentage)
+			safeJson["limit"][to_string(sendTo)] = to_string(percentage);
+	}
+	return result;
+}
+
 
 Int DB::limit(Address const& _user, Address const& _canSendTo) const
 {

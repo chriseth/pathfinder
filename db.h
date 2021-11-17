@@ -55,6 +55,8 @@ struct DB
 	Token* tokenMaybe(Address const& _address);
 
 	void importFromTheGraph(nlohmann::json const& _file);
+	/// Export the database to json - for testing purposes, does not contain all information.
+	nlohmann::json exportToJson() const;
 
 	/// @returns how much of @a _user's token they can send to @a _canSendTo.
 	Int limit(Address const& _user, Address const& _canSendTo) const;
