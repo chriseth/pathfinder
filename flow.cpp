@@ -5,6 +5,7 @@
 #include <variant>
 #include <functional>
 #include <algorithm>
+#include <cassert>
 
 using namespace std;
 
@@ -143,6 +144,83 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 	return transfers;
 }
 
+pair<Node, Node> smallestEdge(map<Node, map<Node, Int>> const& _usedEdges)
+{
+	assert(!_usedEdges.empty());
+	optional<Int> cap;
+	optional<pair<Node, Node>> edge;
+	for (auto&& [a, out]: _usedEdges)
+		for (auto&& [b, c]: out)
+			if (c != Int(0) && (!cap || c < *cap))
+			{
+				cap = c;
+				edge = {a, b};
+			}
+	assert(edge);
+	return *edge;
+}
+
+optional<Node> smallestEdgeTo(map<Node, map<Node, Int>> const& _usedEdges, Node const& _dest)
+{
+	optional<Int> cap;
+	optional<Node> src;
+	for (auto&& [a, out]: _usedEdges)
+		if (out.count(_dest))
+		{
+			Int c = out.at(_dest);
+			if (c != Int(0) && (!cap || c < *cap))
+			{
+				cap = c;
+				src = a;
+			}
+		}
+	return src;
+}
+
+optional<Node> smallestEdgeFrom(map<Node, map<Node, Int>> const& _usedEdges, Node const& _src)
+{
+	if (!_usedEdges.count(_src))
+		return nullopt;
+	optional<Int> cap;
+	optional<Node> dest;
+	for (auto&& [b, c]: _usedEdges.at(_src))
+		if (c != Int(0) && (!cap || c < *cap))
+		{
+			cap = c;
+			dest = b;
+		}
+	return dest;
+}
+
+void reduceCapacity(map<Node, map<Node, Int>>& _usedEdges, Node _a, Node _b, Int const& _capacity)
+{
+	_usedEdges[_a][_b] -= _capacity;
+	if (_usedEdges[_a][_b] == Int(0))
+		_usedEdges[_a].erase(_b);
+}
+
+void prune(map<Node, map<Node, Int>>& _usedEdges, Node _n, Int _flowToPrune, bool _forward)
+{
+	while (true)
+	{
+		optional<Node> a = _forward ? smallestEdgeFrom(_usedEdges, _n) : smallestEdgeTo(_usedEdges, _n);
+		if (!a)
+			return; // we reached the source / sink
+
+		Int cap = _forward ? _usedEdges[_n][*a] : _usedEdges[*a][_n];
+		if (cap >= _flowToPrune)
+			cap = _flowToPrune;
+		if (_forward)
+			reduceCapacity(_usedEdges, _n, *a, cap);
+		else
+			reduceCapacity(_usedEdges, *a, _n, cap);
+		prune(_usedEdges, *a, cap, _forward);
+		_flowToPrune -= cap;
+		if (_flowToPrune == Int(0))
+			return;
+	}
+}
+
 pair<Int, vector<Edge>> computeFlow(
 	Address const& _source,
 	Address const& _sink,
@@ -165,15 +243,14 @@ pair<Int, vector<Edge>> computeFlow(
 
 	map<Node, map<Node, Int>> usedEdges;
 
+	// First always compute the max flow.
 	Int flow{0};
-	while (flow < _requestedFlow)
+	while (true)
 	{
 		auto [newFlow, parents] = augmentingPath(_source, _sink, capacities);
 		//cout << "Found augmenting path with flow " << newFlow << endl;
 		if (newFlow == Int(0))
 			break;
-		if (flow + newFlow > _requestedFlow)
-			newFlow = _requestedFlow - flow;
 		flow += newFlow;
 		for (Node node = _sink; node != Node{_source}; )
 		{
@@ -189,6 +266,20 @@ pair<Int, vector<Edge>> computeFlow(
 				usedEdges[node][prev] -= newFlow;
 			node = prev;
 		}
+	}
+//	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
+
+	// Now prune edges until the flow is as requested.
+	while (flow > _requestedFlow)
+	{
+		auto&& [a, b] = smallestEdge(usedEdges);
+		Int edgeSize = usedEdges[a][b];
+		if (flow - edgeSize < _requestedFlow)
+			edgeSize = flow - _requestedFlow;
+		reduceCapacity(usedEdges, a, b, edgeSize);
+		prune(usedEdges, b, edgeSize, true);
+		prune(usedEdges, a, edgeSize, false);
+		flow -= edgeSize;
 	}
 
 	return {flow, extractTransfers(_source, _sink, flow, usedEdges)};
