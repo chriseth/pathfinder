@@ -200,9 +200,11 @@ let validateTransfers = async function(transfers) {
         value.push(step.value);
     }
     var abi = ["function transferThrough(address[],address[],address[],uint256[]) view"];
-    var iface = new ethers.utils.Interface(abi)
+    var iface = new ethers.utils.Interface(abi);
+    console.log('transferThrough', [token, from, to, value]);
     var calldata = iface.encodeFunctionData('transferThrough', [token, from, to, value]);
     try {
+        console.log({from: from[0], to: hubAddress, data: calldata});
         await provider.call({from: from[0], to: hubAddress, data: calldata});
         document.getElementById("validation").innerText = 'validated';
     } catch {
