@@ -142,10 +142,73 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 		!nodeBalances.empty() &&
 		(nodeBalances.size() > 1 || nodeBalances.begin()->first != _sink)
 	)
-		transfers += extractNextTransfers(_usedEdges, nodeBalances);
+	{
+		auto next = extractNextTransfers(_usedEdges, nodeBalances);
+		if (next.empty())
+			// TODO this should actually not happen.
+			break;
+		transfers += move(next);
+	}
 
 	return transfers;
 }
+
+map<Node, int> distanceFromSource(Node const& _source, map<Node, map<Node, Int>> const& _usedEdges)
+{
+	map<Node, int> distances;
+	deque<Node> toProcess;
+	distances[_source] = 0;
+	toProcess.push_back(_source);
+	while (!toProcess.empty())
+	{
+		Node n = toProcess.front();
+		toProcess.pop_front();
+		if (_usedEdges.count(n))
+			for (auto&& [t, weight]: _usedEdges.at(n))
+				if (weight != Int(0) && !distances.count(t))
+				{
+					distances[t] = distances[n] + 1;
+					toProcess.push_back(t);
+				}
+	}
+	return distances;
+}
+
+map<Node, map<Node, Int>> reverseEdges(map<Node, map<Node, Int>> const& _usedEdges)
+{
+	map<Node, map<Node, Int>> reverseEdges;
+	for (auto&& [n, edges]: _usedEdges)
+		for (auto&& [t, weight]: edges)
+			reverseEdges[t][n] = weight;
+	return reverseEdges;
+}
+
+map<Node, int> distanceToSink(Node const& _sink, map<Node, map<Node, Int>> const& _usedEdges)
+{
+	return distanceFromSource(_sink, reverseEdges(_usedEdges));
+}
+
+/// Returns a map from the negative shortest path length to the edge.
+/// The shortest path length is negative so that it is sorted by
+/// longest paths first - those are the ones we want to eliminate first.
+map<int, set<pair<Node, Node>>> computeEdgesByPathLength(
+	Node const& _source,
+	Node const& _sink,
+	map<Node, map<Node, Int>> const& _usedEdges
+)
+{
+	map<Node, int> fromSource = distanceFromSource(_source, _usedEdges);
+	map<Node, int> toSink = distanceToSink(_sink, _usedEdges);
+	map<int, set<pair<Node, Node>>> result;
+	for (auto&& [s, edges]: _usedEdges)
+		for (auto&& [t, weight]: edges)
+		{
+			int pathLength = fromSource.at(s) + 1 + toSink.at(t);
+			result[-pathLength].emplace(s, t);
+		}
+	return result;
+}
+
 
 pair<Node, Node> smallestEdge(map<Node, map<Node, Int>> const& _usedEdges)
 {
@@ -161,6 +224,25 @@ pair<Node, Node> smallestEdge(map<Node, map<Node, Int>> const& _usedEdges)
 			}
 	assert(edge);
 	return *edge;
+}
+
+optional<pair<Node, Node>> smallestEdgeInSet(map<Node, map<Node, Int>> const& _usedEdges, set<pair<Node, Node>> const& _edges)
+{
+	assert(!_usedEdges.empty());
+	optional<Int> cap;
+	optional<pair<Node, Node>> edge;
+	for (auto&& [a, b]: _edges)
+		if (_usedEdges.count(a) && _usedEdges.at(a).count(b))
+		{
+			Int edgeCapacity = _usedEdges.at(a).at(b);
+			if (edgeCapacity != Int(0))
+				if (!cap || edgeCapacity < *cap)
+				{
+					cap = move(edgeCapacity);
+					edge = {a, b};
+				}
+		}
+	return edge;
 }
 
 optional<Node> smallestEdgeTo(map<Node, map<Node, Int>> const& _usedEdges, Node const& _dest)
@@ -224,6 +306,23 @@ void prune(map<Node, map<Node, Int>>& _usedEdges, Node _n, Int _flowToPrune, boo
 	}
 }
 
+/// Removes the edge (potentially partially), removing a given amount of flow.
+/// Returns the remaining flow to prune if the edge was too small.
+Int pruneEdge(map<Node, map<Node, Int>>& _usedEdges, pair<Node, Node> const& _edge, Int _flowToPrune)
+{
+	Node a = _edge.first;
+	Node b = _edge.second;
+	Int edgeSize = _usedEdges[a][b];
+	if (edgeSize > _flowToPrune)
+		edgeSize = _flowToPrune;
+//	cerr << "Pruning an edge of size " << edgeSize << endl;
+//	cerr << "Flow to prune: " << _flowToPrune << endl;
+	reduceCapacity(_usedEdges, a, b, edgeSize);
+	prune(_usedEdges, b, edgeSize, true);
+	prune(_usedEdges, a, edgeSize, false);
+	return _flowToPrune - edgeSize;
+}
+
 pair<Int, vector<Edge>> computeFlow(
 	Address const& _source,
 	Address const& _sink,
@@ -232,7 +331,8 @@ pair<Int, vector<Edge>> computeFlow(
 #else
 	set<Edge> const& _edges,
 #endif
-	Int _requestedFlow
+	Int _requestedFlow,
+	bool _prune
 )
 {
 	cerr << "Computing adjacencies..." << endl;
@@ -251,7 +351,7 @@ pair<Int, vector<Edge>> computeFlow(
 	while (true)
 	{
 		auto [newFlow, parents] = augmentingPath(_source, _sink, capacities);
-		//cout << "Found augmenting path with flow " << newFlow << endl;
+		//cerr << "Found augmenting path with flow " << newFlow << endl;
 		if (newFlow == Int(0))
 			break;
 		flow += newFlow;
@@ -271,19 +371,52 @@ pair<Int, vector<Edge>> computeFlow(
 		}
 	}
 	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
-
-	// Now prune edges until the flow is as requested.
-	while (flow > _requestedFlow)
+	if (_prune && flow > _requestedFlow)
 	{
-		auto&& [a, b] = smallestEdge(usedEdges);
-		Int edgeSize = usedEdges[a][b];
-		if (flow - edgeSize < _requestedFlow)
-			edgeSize = flow - _requestedFlow;
-		reduceCapacity(usedEdges, a, b, edgeSize);
-		prune(usedEdges, b, edgeSize, true);
-		prune(usedEdges, a, edgeSize, false);
-		flow -= edgeSize;
+		cerr << "Pruning according to new algorithm..." << endl;
+		// Note the path length is negative to sort by longest shortest path first.
+		map<int, set<pair<Node, Node>>> edgesByPathLength = computeEdgesByPathLength(_source, _sink, usedEdges);
+		Int flowToPrune = flow - _requestedFlow;
+		for (auto&& [pathLength, edgesHere]: edgesByPathLength)
+		{
+			// As long as `edges` contain an edge with smaller weight than the weight still to prune:
+			//   take the smallest such edge and prune it.
+			while (flowToPrune > Int{0})
+			{
+				auto smallestEdge = smallestEdgeInSet(usedEdges, edgesHere);
+				if (!smallestEdge || usedEdges[smallestEdge->first][smallestEdge->second] > flowToPrune)
+					break;
+				flowToPrune = pruneEdge(usedEdges, *smallestEdge, flowToPrune);
+			}
+		}
+		// If there is still flow to prune, take the first element in edgesByPathLength
+		// and partially prune its path.
+		if (flowToPrune > Int{0})
+			for (auto&& [pathLength, edges]: edgesByPathLength)
+			{
+				for (auto&& edge: edges)
+				{
+					flowToPrune = pruneEdge(usedEdges, edge, flowToPrune);
+					if (flowToPrune == Int{0})
+						break;
+				}
+				if (flowToPrune == Int{0})
+					break;
+			}
+		flow = _requestedFlow + flowToPrune;
 	}
+	else if (flow > _requestedFlow)
+	{
+		// Now prune edges until the flow is as requested.
+		// (old algorithm)
+		Int flowToPrune = flow - _requestedFlow;
+		while (flowToPrune > Int(0))
+			flowToPrune = pruneEdge(usedEdges, smallestEdge(usedEdges), flowToPrune);
+		flow = _requestedFlow;
+	}
+
+	assert(flowToPrune == Int{0});
+	cerr << "Done." << endl;
 
 	return {flow, extractTransfers(_source, _sink, flow, usedEdges)};
 }

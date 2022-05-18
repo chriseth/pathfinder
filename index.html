@@ -49,6 +49,7 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 <span class="descriptor">Value:</span><input id="value" type="text" /> (put 0 to compute max value to transact)
 </div>
 </div>
+<input type="checkbox" id="prune">prune using new algorithm</checkbox><br/>
 <button id="compute">compute</button><span id="validation"></span><br/>
 <button id="explore">explore</button> trust graph of sender<br/>
 <button id="showDebug">debug</button>
@@ -526,7 +527,8 @@ document.getElementById("compute").onclick = async function() {
     } else {
         value = unformatValue(value);
     }
-    let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value})));
+    let prune = document.getElementById("prune").checked;
+    let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value, "prune": prune})));
     if (data.debug) {
         document.getElementById('debug').innerText = "DEBUG from pathfinder:\n" + data.debug;
     }

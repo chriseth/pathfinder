@@ -59,10 +59,11 @@ json flowJson(json const& _parameters)
 	Address from{string(_parameters["from"])};
 	Address to{string(_parameters["to"])};
 	Int value{string(_parameters["value"])};
+	bool prune = _parameters.contains("prune") && _parameters["prune"];
 #if USE_FLOW
 	auto [flow, transfers] = computeFlow(from, to, db.flowGraph(), value);
 #else
-	auto [flow, transfers] = computeFlow(from, to, db.edges(), value);
+	auto [flow, transfers] = computeFlow(from, to, db.edges(), value, prune);
 #endif
 
 	json output;
