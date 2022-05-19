@@ -267,7 +267,7 @@ pair<Int, vector<Edge>> computeFlow(
 			node = prev;
 		}
 	}
-//	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
+	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
 
 	// Now prune edges until the flow is as requested.
 	while (flow > _requestedFlow)

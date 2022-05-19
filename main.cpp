@@ -189,6 +189,55 @@ void computeFlow(
 	} << endl;
 }
 
+void computeFlowFromEdgesCSV(
+	Address const& _source,
+	Address const& _sink,
+	Int const& _value,
+	string const& _edgesCSV
+)
+{
+	ifstream stream(_edgesCSV);
+	set<Edge> edges;
+	string line;
+	while (getline(stream, line))
+	{
+		auto it = line.begin();
+		string parts[4];
+		for (size_t i = 0; i < 4; i++)
+		{
+			string& part = parts[i];
+			while (it != line.end() && *it != ',')
+				part += *(it++);
+			if (it != line.end() && *it == ',')
+				it++;
+		}
+		if (parts[0] == "from")
+			// ignore header
+			continue;
+		edges.insert(Edge{Address{parts[0]}, Address{parts[1]}, Address{parts[2]}, Int{parts[3]}});
+	}
+
+	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value);
+//	cout << "Flow: " << flow << endl;
+//	cout << "Transfers: " << endl;
+//	for (Edge const& edge: transfers)
+//		cout << edge.from << " (" << edge.token << ") -> " << edge.to << " - " << edge.capacity << endl;
+
+	size_t stepNr = 0;
+	json transfersJson = json::array();
+	for (Edge const& transfer: transfers)
+		transfersJson.push_back(nlohmann::json{
+			{"step", stepNr++},
+			{"from", to_string(transfer.from)},
+			{"to", to_string(transfer.to)},
+			{"token", to_string(transfer.token)},
+			{"value", to_string(transfer.capacity)}
+		});
+	cout << json{
+		{"maxFlowValue", to_string(flow)},
+		{"transferSteps", move(transfersJson)}
+	} << endl;
+}
 
 void importDB(string const& _safesJson, string const& _dbDat)
 {
@@ -394,6 +443,8 @@ int main(int argc, char const** argv)
 //		computeDiff(argv[2], argv[3], argv[4]);
 //	else if (argc == 5 && argv[1] == string{"--applyDiff"})
 //		applyDiff(argv[2], argv[3], argv[4]);
+	else if ( argc == 6 && argv[1] == string{"--flowcsv"})
+		computeFlowFromEdgesCSV(Address(string(argv[2])), Address(string(argv[3])), Int(string(argv[4])), argv[5]);
 	else if (
 		(argc == 6 && argv[1] == string{"--flow"}) ||
 		(argc == 5 && string(argv[1]).substr(0, 2) != "--")
@@ -404,6 +455,7 @@ int main(int argc, char const** argv)
 		cerr << "Usage: " << argv[0] << " <from> <to> <value> <edges.dat>" << endl;
 		cerr << "Options: " << endl;
 		cerr << "  --json                                     JSON mode via stdin/stdout." << endl;
+		cerr << "  --flowcsv <from> <to> <value> <edges.csv>  Compute max flow up to <value> from edges csv and output transfer steps in json." << endl;
 		cerr << "  [--flow] <from> <to> <value> <db.dat>      Compute max flow up to <value> and output transfer steps in json." << endl;
 		cerr << "  --importDB <safes.json> <db.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
 		cerr << "  --dbToEdges <db.dat> <edges.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
