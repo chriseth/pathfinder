@@ -37,9 +37,12 @@ void erase_if(map<K, V>& _container, F const& _fun)
 /// At the same time, it generates new pseudo-nodes to cope with the multi-edges.
 map<Node, map<Node, Int>> computeAdjacencies(set<Edge> const& _edges)
 {
+	//Int const minCap("1000000000000000");
 	map<Node, map<Node, Int>> adjacencies;
 	for (Edge const& edge: _edges)
 	{
+		//if (edge.capacity < minCap)
+		//	continue;
 		// One edge from "from" to "from x token" with a capacity as the max over
 		// all contributing edges (the balance of the sender)
 		adjacencies[edge.from][pseudoNode(edge)] = max(edge.capacity, adjacencies[edge.from][pseudoNode(edge)]);
