@@ -1,11 +1,14 @@
 #include "flow.h"
 
+#include "adjacencies.h"
+
 #include <queue>
 #include <iostream>
 #include <variant>
 #include <functional>
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 
 using namespace std;
 
@@ -64,10 +67,10 @@ vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
 pair<Int, map<Node, Node>> augmentingPath(
 	Address const& _source,
 	Address const& _sink,
-	map<Node, map<Node, Int>> const& _capacity
+	Adjacencies& _adjacencies
 )
 {
-	if (_source == _sink || !_capacity.count(_source))
+	if (_source == _sink || !_adjacencies.hasOutgoingEdges(_source))
 		return {Int(0), {}};
 
 	map<Node, Node> parent;
@@ -80,9 +83,9 @@ pair<Int, map<Node, Node>> augmentingPath(
 		//cout << "Parent relation size: " << parent.size() << endl;
 		auto [node, flow] = q.front();
 		q.pop();
-		if (!_capacity.count(node))
+		if (!_adjacencies.hasOutgoingEdges(node))
 			continue;
-		for (auto const& [target, capacity]: sortedByCapacity(_capacity.at(node)))
+		for (auto const& [target, capacity]: _adjacencies.outgoingEdgesSortedByCapacity(node))
 			if (!parent.count(target) && Int(0) < capacity)
 			{
 				parent[target] = node;
@@ -335,22 +338,28 @@ pair<Int, vector<Edge>> computeFlow(
 	bool _prune
 )
 {
+	cerr << "Got " << _edges.size() << " edges" << endl;
 	cerr << "Computing adjacencies..." << endl;
+	auto t1 = chrono::high_resolution_clock::now();
 #if USE_FLOW
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #else
-	map<Node, map<Node, Int>> adjacencies = computeAdjacencies(_edges);
-	map<Node, map<Node, Int>> capacities = adjacencies;
+
+	Adjacencies adjacencies(_edges);
 #endif
-	cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
+	auto t2 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
+	//cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
+	cerr << "Computing max flow..." << endl;
+	auto t3 = chrono::high_resolution_clock::now();
 	// First always compute the max flow.
 	Int flow{0};
 	while (true)
 	{
-		auto [newFlow, parents] = augmentingPath(_source, _sink, capacities);
+		auto [newFlow, parents] = augmentingPath(_source, _sink, adjacencies);
 		//cerr << "Found augmenting path with flow " << newFlow << endl;
 		if (newFlow == Int(0))
 			break;
@@ -358,10 +367,10 @@ pair<Int, vector<Edge>> computeFlow(
 		for (Node node = _sink; node != Node{_source}; )
 		{
 			Node const& prev = parents[node];
-			capacities[prev][node] -= newFlow;
-			capacities[node][prev] += newFlow;
+			adjacencies.adjustCapacity(prev, node, -newFlow);
+			adjacencies.adjustCapacity(node, prev, newFlow);
 			// TODO still not sure about this one.
-			if (!adjacencies.count(node) || !adjacencies.at(node).count(prev) || adjacencies.at(node).at(prev) == Int(0))
+			if (!adjacencies.isAdjacent(node, prev))
 				// real edge
 				usedEdges[prev][node] += newFlow;
 			else
@@ -371,6 +380,8 @@ pair<Int, vector<Edge>> computeFlow(
 		}
 	}
 	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
+	auto t4 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t4 - t3).count() << endl;
 	if (_prune && flow > _requestedFlow)
 	{
 		cerr << "Pruning according to new algorithm..." << endl;
