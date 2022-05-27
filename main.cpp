@@ -9,6 +9,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <chrono>
 
 using namespace std;
 using json = nlohmann::json;
@@ -197,6 +198,8 @@ void computeFlowFromEdgesCSV(
 	string const& _edgesCSV
 )
 {
+	cerr << "Importing csv..." << endl;
+	auto t1 = chrono::high_resolution_clock::now();
 	ifstream stream(_edgesCSV);
 	set<Edge> edges;
 	string line;
@@ -217,6 +220,8 @@ void computeFlowFromEdgesCSV(
 			continue;
 		edges.insert(Edge{Address{parts[0]}, Address{parts[1]}, Address{parts[2]}, Int{parts[3]}});
 	}
+	auto t2 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
 
 	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value);
 //	cout << "Flow: " << flow << endl;
