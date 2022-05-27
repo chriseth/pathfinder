@@ -337,22 +337,18 @@ pair<Int, vector<Edge>> computeFlow(
 )
 {
 	cerr << "Got " << _edges.size() << " edges" << endl;
-	cerr << "Computing adjacencies..." << endl;
-	auto t1 = chrono::high_resolution_clock::now();
 #if USE_FLOW
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #else
 
 	Adjacencies adjacencies(_edges);
 #endif
-	auto t2 = chrono::high_resolution_clock::now();
-	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
 	//cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
 	cerr << "Computing max flow..." << endl;
-	auto t3 = chrono::high_resolution_clock::now();
+	auto t1 = chrono::high_resolution_clock::now();
 	// First always compute the max flow.
 	Int flow{0};
 	while (true)
@@ -379,8 +375,10 @@ pair<Int, vector<Edge>> computeFlow(
 		}
 	}
 	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
-	auto t4 = chrono::high_resolution_clock::now();
-	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t4 - t3).count() << endl;
+	auto t2 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
+	cerr << "Pruning..." << endl;
+	auto t3 = chrono::high_resolution_clock::now();
 	if (_prune && flow > _requestedFlow)
 	{
 		cerr << "Pruning according to new algorithm..." << endl;
@@ -425,8 +423,14 @@ pair<Int, vector<Edge>> computeFlow(
 		flow = _requestedFlow;
 	}
 
-	assert(flowToPrune == Int{0});
-	cerr << "Done." << endl;
+	auto t4 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t4 - t3).count() << endl;
 
-	return {flow, extractTransfers(_source, _sink, flow, usedEdges)};
+	assert(flowToPrune == Int{0});
+	cerr << "Computing transfers..." << endl;
+	auto t5 = chrono::high_resolution_clock::now();
+	auto transfers = extractTransfers(_source, _sink, flow, usedEdges);
+	auto t6 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t6 - t5).count() << endl;
+	return {flow, move(transfers)};
 }

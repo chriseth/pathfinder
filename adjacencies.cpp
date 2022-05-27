@@ -29,19 +29,8 @@ Address sourceAddressOf(Node const& _node)
 
 }
 
-Adjacencies::Adjacencies(set<Edge> const& _edges)
+Adjacencies::Adjacencies(set<Edge> const& _edges): m_edges(_edges)
 {
-	for (Edge const& edge: _edges)
-		m_edgesFrom[edge.from].insert(edge);
-//		//if (edge.capacity < minCap)
-//		//	continue;
-//		// One edge from "from" to "from x token" with a capacity as the max over
-//		// all contributing edges (the balance of the sender)
-//		m_adjacencies[edge.from][pseudoNode(edge)] = max(edge.capacity, m_adjacencies[edge.from][pseudoNode(edge)]);
-//		// Another edge from "from x token" to "to" with its own capacity (based on the trust)
-//		m_adjacencies[pseudoNode(edge)][edge.to] = edge.capacity;
-//	}
-//	cout << m_adjacencies.size() << endl;
 }
 
 vector<pair<Node, Int>> Adjacencies::outgoingEdgesSortedByCapacity(Node const& _from)
@@ -77,10 +66,16 @@ map<Adjacencies::Node, Int> Adjacencies::adjacenciesFrom(Node const& _from)
 
 	map<Adjacencies::Node, Int> adj;
 	Address addrFrom = sourceAddressOf(_from);
+
+	Address static const maxAddr{"0xffffffffffffffffffffffffffffffffffffffff"s};
+
+	auto it = m_edges.lower_bound(Edge{addrFrom, Address{}, Address{}, Int(0)});
+	auto end = m_edges.upper_bound(Edge{addrFrom, maxAddr, maxAddr, Int(0)});
 	if (isRealNode(_from))
 	{
-		for (Edge const& edge: m_edgesFrom[addrFrom])
+		for (; it != end; it++)
 		{
+			Edge const& edge = *it;
 			// One edge from "from" to "from x token" with a capacity as the max over
 			// all contributing edges (the balance of the sender)
 			adj[pseudoNode(edge)] = max(edge.capacity, adj[pseudoNode(edge)]);
@@ -88,8 +83,9 @@ map<Adjacencies::Node, Int> Adjacencies::adjacenciesFrom(Node const& _from)
 	}
 	else
 	{
-		for (Edge const& edge: m_edgesFrom[addrFrom])
+		for (; it != end; it++)
 		{
+			Edge const& edge = *it;
 			// Another edge from "from x token" to "to" with its own capacity (based on the trust)
 			if (pseudoNode(edge) == _from)
 				adj[edge.to] = edge.capacity;

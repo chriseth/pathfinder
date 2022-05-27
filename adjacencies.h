@@ -20,7 +20,8 @@ public:
 private:
 	std::map<Node, Int> adjacenciesFrom(Node const& _from);
 
-	std::map<Address, std::set<Edge>> m_edgesFrom;
+	//std::map<Address, std::set<Edge>> m_edgesFrom;
+	std::set<Edge> const& m_edges;
 	std::map<Node, std::map<Node, Int>> m_lazyAdjacencies;
 	std::map<Node, std::map<Node, Int>> m_capacityAdjustments;
 };
