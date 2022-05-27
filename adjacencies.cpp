@@ -72,6 +72,9 @@ void Adjacencies::adjustCapacity(Node const& _from, Node const& _to, Int const& 
 
 map<Adjacencies::Node, Int> Adjacencies::adjacenciesFrom(Node const& _from)
 {
+	if (m_lazyAdjacencies.count(_from))
+		return m_lazyAdjacencies[_from];
+
 	map<Adjacencies::Node, Int> adj;
 	Address addrFrom = sourceAddressOf(_from);
 	if (isRealNode(_from))
@@ -92,5 +95,6 @@ map<Adjacencies::Node, Int> Adjacencies::adjacenciesFrom(Node const& _from)
 				adj[edge.to] = edge.capacity;
 		}
 	}
+	m_lazyAdjacencies[_from] = adj;
 	return adj;
 }
