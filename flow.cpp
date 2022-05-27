@@ -70,7 +70,7 @@ pair<Int, map<Node, Node>> augmentingPath(
 	Adjacencies& _adjacencies
 )
 {
-	if (_source == _sink || !_adjacencies.hasOutgoingEdges(_source))
+	if (_source == _sink)
 		return {Int(0), {}};
 
 	map<Node, Node> parent;
@@ -83,8 +83,6 @@ pair<Int, map<Node, Node>> augmentingPath(
 		//cout << "Parent relation size: " << parent.size() << endl;
 		auto [node, flow] = q.front();
 		q.pop();
-		if (!_adjacencies.hasOutgoingEdges(node))
-			continue;
 		for (auto const& [target, capacity]: _adjacencies.outgoingEdgesSortedByCapacity(node))
 			if (!parent.count(target) && Int(0) < capacity)
 			{

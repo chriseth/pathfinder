@@ -10,7 +10,6 @@ class Adjacencies
 public:
 	Adjacencies(std::set<Edge> const& _edges);
 
-	bool hasOutgoingEdges(Node const& _from) const;
 	/// @returns the list of edges from the given node, sorted by capacities.
 	std::vector<std::pair<Node, Int>> outgoingEdgesSortedByCapacity(Node const& _from);
 	/// @returns true if there is an edge with nonzero capacity from @a _from to @a _to in the
