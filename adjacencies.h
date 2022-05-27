@@ -20,5 +20,5 @@ public:
 private:
 	std::set<Edge> const& m_edges;
 	std::map<Node, std::map<Node, Int>> m_adjacencies;
-	std::map<Node, std::map<Node, Int>> m_capacities;
+	std::map<Node, std::map<Node, Int>> m_capacityAdjustments;
 };
