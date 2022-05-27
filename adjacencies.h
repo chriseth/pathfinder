@@ -14,11 +14,12 @@ public:
 	std::vector<std::pair<Node, Int>> outgoingEdgesSortedByCapacity(Node const& _from);
 	/// @returns true if there is an edge with nonzero capacity from @a _from to @a _to in the
 	/// unmodified graph.
-	bool isAdjacent(Node const& _from, Node const& _to) const;
+	bool isAdjacent(Node const& _from, Node const& _to);
 	/// Adjusts the capacity of the given edge.
 	void adjustCapacity(Node const& _from, Node const& _to, Int const& _adjustment);
 private:
-	std::set<Edge> const& m_edges;
-	std::map<Node, std::map<Node, Int>> m_adjacencies;
+	std::map<Node, Int> adjacenciesFrom(Node const& _from);
+
+	std::map<Address, std::set<Edge>> m_edgesFrom;
 	std::map<Node, std::map<Node, Int>> m_capacityAdjustments;
 };

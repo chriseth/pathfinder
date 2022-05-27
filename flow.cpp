@@ -359,6 +359,7 @@ pair<Int, vector<Edge>> computeFlow(
 	{
 		auto [newFlow, parents] = augmentingPath(_source, _sink, adjacencies);
 		//cerr << "Found augmenting path with flow " << newFlow << endl;
+		//cerr << "Parents: " << parents.size() << endl;
 		if (newFlow == Int(0))
 			break;
 		flow += newFlow;
