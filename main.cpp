@@ -439,11 +439,6 @@ void jsonMode()
 
 int main(int argc, char const** argv)
 {
-	ifstream instream{"/home/daniel/src/NPathfinder/NPathfinder/NPathfinder.Server/.trustgraph.dat"};
-	size_t blockNumber;
-	tie(blockNumber, db) = BinaryImporter(instream).readBlockNumberAndDB();
-
-
 	if (argc == 4 && argv[1] == string{"--importDB"})
 		importDB(argv[2], argv[3]);
 	else if (argc == 2 && argv[1] == string{"--json"})
