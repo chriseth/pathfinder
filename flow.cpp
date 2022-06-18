@@ -6,7 +6,6 @@
 #include <iostream>
 #include <variant>
 #include <functional>
-#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <optional>
