@@ -12,5 +12,6 @@ std::pair<Int, std::vector<Edge>> computeFlow(
 #else
 	std::set<Edge> const& _edges,
 #endif
-	Int _requestedFlow = Int::max()
+	Int _requestedFlow = Int::max(),
+	bool _prune = false
 );

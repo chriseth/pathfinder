@@ -1,10 +1,14 @@
 #include "flow.h"
 
+#include "adjacencies.h"
+
 #include <queue>
 #include <iostream>
 #include <variant>
 #include <functional>
 #include <algorithm>
+#include <cassert>
+#include <chrono>
 
 using namespace std;
 
@@ -36,9 +40,12 @@ void erase_if(map<K, V>& _container, F const& _fun)
 /// At the same time, it generates new pseudo-nodes to cope with the multi-edges.
 map<Node, map<Node, Int>> computeAdjacencies(set<Edge> const& _edges)
 {
+	//Int const minCap("1000000000000000");
 	map<Node, map<Node, Int>> adjacencies;
 	for (Edge const& edge: _edges)
 	{
+		//if (edge.capacity < minCap)
+		//	continue;
 		// One edge from "from" to "from x token" with a capacity as the max over
 		// all contributing edges (the balance of the sender)
 		adjacencies[edge.from][pseudoNode(edge)] = max(edge.capacity, adjacencies[edge.from][pseudoNode(edge)]);
@@ -60,10 +67,10 @@ vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
 pair<Int, map<Node, Node>> augmentingPath(
 	Address const& _source,
 	Address const& _sink,
-	map<Node, map<Node, Int>> const& _capacity
+	Adjacencies& _adjacencies
 )
 {
-	if (_source == _sink || !_capacity.count(_source))
+	if (_source == _sink)
 		return {Int(0), {}};
 
 	map<Node, Node> parent;
@@ -76,9 +83,7 @@ pair<Int, map<Node, Node>> augmentingPath(
 		//cout << "Parent relation size: " << parent.size() << endl;
 		auto [node, flow] = q.front();
 		q.pop();
-		if (!_capacity.count(node))
-			continue;
-		for (auto const& [target, capacity]: sortedByCapacity(_capacity.at(node)))
+		for (auto const& [target, capacity]: _adjacencies.outgoingEdgesSortedByCapacity(node))
 			if (!parent.count(target) && Int(0) < capacity)
 			{
 				parent[target] = node;
@@ -138,9 +143,185 @@ vector<Edge> extractTransfers(Address const& _source, Address const& _sink, Int 
 		!nodeBalances.empty() &&
 		(nodeBalances.size() > 1 || nodeBalances.begin()->first != _sink)
 	)
-		transfers += extractNextTransfers(_usedEdges, nodeBalances);
+	{
+		auto next = extractNextTransfers(_usedEdges, nodeBalances);
+		if (next.empty())
+			// TODO this should actually not happen.
+			break;
+		transfers += move(next);
+	}
 
 	return transfers;
+}
+
+map<Node, int> distanceFromSource(Node const& _source, map<Node, map<Node, Int>> const& _usedEdges)
+{
+	map<Node, int> distances;
+	deque<Node> toProcess;
+	distances[_source] = 0;
+	toProcess.push_back(_source);
+	while (!toProcess.empty())
+	{
+		Node n = toProcess.front();
+		toProcess.pop_front();
+		if (_usedEdges.count(n))
+			for (auto&& [t, weight]: _usedEdges.at(n))
+				if (weight != Int(0) && !distances.count(t))
+				{
+					distances[t] = distances[n] + 1;
+					toProcess.push_back(t);
+				}
+	}
+	return distances;
+}
+
+map<Node, map<Node, Int>> reverseEdges(map<Node, map<Node, Int>> const& _usedEdges)
+{
+	map<Node, map<Node, Int>> reverseEdges;
+	for (auto&& [n, edges]: _usedEdges)
+		for (auto&& [t, weight]: edges)
+			reverseEdges[t][n] = weight;
+	return reverseEdges;
+}
+
+map<Node, int> distanceToSink(Node const& _sink, map<Node, map<Node, Int>> const& _usedEdges)
+{
+	return distanceFromSource(_sink, reverseEdges(_usedEdges));
+}
+
+/// Returns a map from the negative shortest path length to the edge.
+/// The shortest path length is negative so that it is sorted by
+/// longest paths first - those are the ones we want to eliminate first.
+map<int, set<pair<Node, Node>>> computeEdgesByPathLength(
+	Node const& _source,
+	Node const& _sink,
+	map<Node, map<Node, Int>> const& _usedEdges
+)
+{
+	map<Node, int> fromSource = distanceFromSource(_source, _usedEdges);
+	map<Node, int> toSink = distanceToSink(_sink, _usedEdges);
+	map<int, set<pair<Node, Node>>> result;
+	for (auto&& [s, edges]: _usedEdges)
+		for (auto&& [t, weight]: edges)
+		{
+			int pathLength = fromSource.at(s) + 1 + toSink.at(t);
+			result[-pathLength].emplace(s, t);
+		}
+	return result;
+}
+
+
+pair<Node, Node> smallestEdge(map<Node, map<Node, Int>> const& _usedEdges)
+{
+	assert(!_usedEdges.empty());
+	optional<Int> cap;
+	optional<pair<Node, Node>> edge;
+	for (auto&& [a, out]: _usedEdges)
+		for (auto&& [b, c]: out)
+			if (c != Int(0) && (!cap || c < *cap))
+			{
+				cap = c;
+				edge = {a, b};
+			}
+	assert(edge);
+	return *edge;
+}
+
+optional<pair<Node, Node>> smallestEdgeInSet(map<Node, map<Node, Int>> const& _usedEdges, set<pair<Node, Node>> const& _edges)
+{
+	assert(!_usedEdges.empty());
+	optional<Int> cap;
+	optional<pair<Node, Node>> edge;
+	for (auto&& [a, b]: _edges)
+		if (_usedEdges.count(a) && _usedEdges.at(a).count(b))
+		{
+			Int edgeCapacity = _usedEdges.at(a).at(b);
+			if (edgeCapacity != Int(0))
+				if (!cap || edgeCapacity < *cap)
+				{
+					cap = move(edgeCapacity);
+					edge = {a, b};
+				}
+		}
+	return edge;
+}
+
+optional<Node> smallestEdgeTo(map<Node, map<Node, Int>> const& _usedEdges, Node const& _dest)
+{
+	optional<Int> cap;
+	optional<Node> src;
+	for (auto&& [a, out]: _usedEdges)
+		if (out.count(_dest))
+		{
+			Int c = out.at(_dest);
+			if (c != Int(0) && (!cap || c < *cap))
+			{
+				cap = c;
+				src = a;
+			}
+		}
+	return src;
+}
+
+optional<Node> smallestEdgeFrom(map<Node, map<Node, Int>> const& _usedEdges, Node const& _src)
+{
+	if (!_usedEdges.count(_src))
+		return nullopt;
+	optional<Int> cap;
+	optional<Node> dest;
+	for (auto&& [b, c]: _usedEdges.at(_src))
+		if (c != Int(0) && (!cap || c < *cap))
+		{
+			cap = c;
+			dest = b;
+		}
+	return dest;
+}
+
+void reduceCapacity(map<Node, map<Node, Int>>& _usedEdges, Node _a, Node _b, Int const& _capacity)
+{
+	_usedEdges[_a][_b] -= _capacity;
+	if (_usedEdges[_a][_b] == Int(0))
+		_usedEdges[_a].erase(_b);
+}
+
+void prune(map<Node, map<Node, Int>>& _usedEdges, Node _n, Int _flowToPrune, bool _forward)
+{
+	while (true)
+	{
+		optional<Node> a = _forward ? smallestEdgeFrom(_usedEdges, _n) : smallestEdgeTo(_usedEdges, _n);
+		if (!a)
+			return; // we reached the source / sink
+
+		Int cap = _forward ? _usedEdges[_n][*a] : _usedEdges[*a][_n];
+		if (cap >= _flowToPrune)
+			cap = _flowToPrune;
+		if (_forward)
+			reduceCapacity(_usedEdges, _n, *a, cap);
+		else
+			reduceCapacity(_usedEdges, *a, _n, cap);
+		prune(_usedEdges, *a, cap, _forward);
+		_flowToPrune -= cap;
+		if (_flowToPrune == Int(0))
+			return;
+	}
+}
+
+/// Removes the edge (potentially partially), removing a given amount of flow.
+/// Returns the remaining flow to prune if the edge was too small.
+Int pruneEdge(map<Node, map<Node, Int>>& _usedEdges, pair<Node, Node> const& _edge, Int _flowToPrune)
+{
+	Node a = _edge.first;
+	Node b = _edge.second;
+	Int edgeSize = _usedEdges[a][b];
+	if (edgeSize > _flowToPrune)
+		edgeSize = _flowToPrune;
+//	cerr << "Pruning an edge of size " << edgeSize << endl;
+//	cerr << "Flow to prune: " << _flowToPrune << endl;
+	reduceCapacity(_usedEdges, a, b, edgeSize);
+	prune(_usedEdges, b, edgeSize, true);
+	prune(_usedEdges, a, edgeSize, false);
+	return _flowToPrune - edgeSize;
 }
 
 pair<Int, vector<Edge>> computeFlow(
@@ -151,37 +332,40 @@ pair<Int, vector<Edge>> computeFlow(
 #else
 	set<Edge> const& _edges,
 #endif
-	Int _requestedFlow
+	Int _requestedFlow,
+	bool _prune
 )
 {
-	cerr << "Computing adjacencies..." << endl;
+	cerr << "Got " << _edges.size() << " edges" << endl;
 #if USE_FLOW
 	map<Node, map<Node, Int>> capacities = adjacencies;
 #else
-	map<Node, map<Node, Int>> adjacencies = computeAdjacencies(_edges);
-	map<Node, map<Node, Int>> capacities = adjacencies;
+
+	Adjacencies adjacencies(_edges);
 #endif
-	cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
+	//cerr << "Number of nodes (including pseudo-nodes): " << capacities.size() << endl;
 
 	map<Node, map<Node, Int>> usedEdges;
 
+	cerr << "Computing max flow..." << endl;
+	auto t1 = chrono::high_resolution_clock::now();
+	// First always compute the max flow.
 	Int flow{0};
-	while (flow < _requestedFlow)
+	while (true)
 	{
-		auto [newFlow, parents] = augmentingPath(_source, _sink, capacities);
-		//cout << "Found augmenting path with flow " << newFlow << endl;
+		auto [newFlow, parents] = augmentingPath(_source, _sink, adjacencies);
+		//cerr << "Found augmenting path with flow " << newFlow << endl;
+		//cerr << "Parents: " << parents.size() << endl;
 		if (newFlow == Int(0))
 			break;
-		if (flow + newFlow > _requestedFlow)
-			newFlow = _requestedFlow - flow;
 		flow += newFlow;
 		for (Node node = _sink; node != Node{_source}; )
 		{
 			Node const& prev = parents[node];
-			capacities[prev][node] -= newFlow;
-			capacities[node][prev] += newFlow;
+			adjacencies.adjustCapacity(prev, node, -newFlow);
+			adjacencies.adjustCapacity(node, prev, newFlow);
 			// TODO still not sure about this one.
-			if (!adjacencies.count(node) || !adjacencies.at(node).count(prev) || adjacencies.at(node).at(prev) == Int(0))
+			if (!adjacencies.isAdjacent(node, prev))
 				// real edge
 				usedEdges[prev][node] += newFlow;
 			else
@@ -190,6 +374,63 @@ pair<Int, vector<Edge>> computeFlow(
 			node = prev;
 		}
 	}
+	cerr << "Max flow " << flow << " using " << usedEdges.size() << " nodes/edges " << endl;
+	auto t2 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
+	cerr << "Pruning..." << endl;
+	auto t3 = chrono::high_resolution_clock::now();
+	if (_prune && flow > _requestedFlow)
+	{
+		cerr << "Pruning according to new algorithm..." << endl;
+		// Note the path length is negative to sort by longest shortest path first.
+		map<int, set<pair<Node, Node>>> edgesByPathLength = computeEdgesByPathLength(_source, _sink, usedEdges);
+		Int flowToPrune = flow - _requestedFlow;
+		for (auto&& [pathLength, edgesHere]: edgesByPathLength)
+		{
+			// As long as `edges` contain an edge with smaller weight than the weight still to prune:
+			//   take the smallest such edge and prune it.
+			while (flowToPrune > Int{0})
+			{
+				auto smallestEdge = smallestEdgeInSet(usedEdges, edgesHere);
+				if (!smallestEdge || usedEdges[smallestEdge->first][smallestEdge->second] > flowToPrune)
+					break;
+				flowToPrune = pruneEdge(usedEdges, *smallestEdge, flowToPrune);
+			}
+		}
+		// If there is still flow to prune, take the first element in edgesByPathLength
+		// and partially prune its path.
+		if (flowToPrune > Int{0})
+			for (auto&& [pathLength, edges]: edgesByPathLength)
+			{
+				for (auto&& edge: edges)
+				{
+					flowToPrune = pruneEdge(usedEdges, edge, flowToPrune);
+					if (flowToPrune == Int{0})
+						break;
+				}
+				if (flowToPrune == Int{0})
+					break;
+			}
+		flow = _requestedFlow + flowToPrune;
+	}
+	else if (flow > _requestedFlow)
+	{
+		// Now prune edges until the flow is as requested.
+		// (old algorithm)
+		Int flowToPrune = flow - _requestedFlow;
+		while (flowToPrune > Int(0))
+			flowToPrune = pruneEdge(usedEdges, smallestEdge(usedEdges), flowToPrune);
+		flow = _requestedFlow;
+	}
 
-	return {flow, extractTransfers(_source, _sink, flow, usedEdges)};
+	auto t4 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t4 - t3).count() << endl;
+
+	assert(flowToPrune == Int{0});
+	cerr << "Computing transfers..." << endl;
+	auto t5 = chrono::high_resolution_clock::now();
+	auto transfers = extractTransfers(_source, _sink, flow, usedEdges);
+	auto t6 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t6 - t5).count() << endl;
+	return {flow, move(transfers)};
 }

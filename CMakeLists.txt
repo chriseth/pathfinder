@@ -72,6 +72,8 @@ endif()
 
 set(
 	sources
+	adjacencies.cpp
+	adjacencies.h
 	binaryExporter.cpp
 	binaryExporter.h
 	binaryImporter.cpp

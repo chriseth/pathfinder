@@ -49,6 +49,7 @@ Latest transfer event: <span id="transferEvent">loading...</span><br/>
 <span class="descriptor">Value:</span><input id="value" type="text" /> (put 0 to compute max value to transact)
 </div>
 </div>
+<input type="checkbox" id="prune">prune using new algorithm</checkbox><br/>
 <button id="compute">compute</button><span id="validation"></span><br/>
 <button id="explore">explore</button> trust graph of sender<br/>
 <button id="showDebug">debug</button>
@@ -200,9 +201,11 @@ let validateTransfers = async function(transfers) {
         value.push(step.value);
     }
     var abi = ["function transferThrough(address[],address[],address[],uint256[]) view"];
-    var iface = new ethers.utils.Interface(abi)
+    var iface = new ethers.utils.Interface(abi);
+    console.log('transferThrough', [token, from, to, value]);
     var calldata = iface.encodeFunctionData('transferThrough', [token, from, to, value]);
     try {
+        console.log({from: from[0], to: hubAddress, data: calldata});
         await provider.call({from: from[0], to: hubAddress, data: calldata});
         document.getElementById("validation").innerText = 'validated';
     } catch {
@@ -365,27 +368,43 @@ let completeUserInfo = function() {
     }
 };
 
-let fillUsernames = function(addresses, callback) {
-    if (addresses.length == 0)
-        return;
-
-    var req = new XMLHttpRequest();
-    let url = CirclesAPI + 'users/?';
+let createUserQueryString = function(addresses)
+{
+    let query = '';
     for (addr of addresses) {
-        if (addr && !userDB[addr]) {
-            url += '&address[]=' + addr;
+        if (addr && !userDB[addr.toLowerCase()]) {
+            query += '&address[]=' + addr;
         }
+        if (query.length > 1000)
+            break;
     }
-    req.open("GET", url, true);
+    return query;
+};
+
+let fillUsernames = function(addresses, callback, counter) {
+    if (counter === undefined)
+        counter = 5;
+    let queryStr = createUserQueryString(addresses);
+    if (queryStr === '' || counter <= 0)
+    {
+        completeUserInfo();
+        callback();
+        return;
+    }
+    var req = new XMLHttpRequest();
+    req.open("GET", CirclesAPI + 'users/?' + queryStr, true);
     req.onload = function() {
         if (req.responseText) {
             for (user of JSON.parse(req.responseText).data) {
                 userDB[user.safeAddress.toLowerCase()] = {avatarUrl: user.avatarUrl, username: user.username};
             }
-            completeUserInfo();
-            callback();
+            fillUsernames(addresses, callback, counter - 1);
         }
     };
+    req.onerror = function() {
+        completeUserInfo()
+        callback();
+    }
     req.send(null);
 };
 
@@ -508,7 +527,8 @@ document.getElementById("compute").onclick = async function() {
     } else {
         value = unformatValue(value);
     }
-    let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value})));
+    let prune = document.getElementById("prune").checked;
+    let data = JSON.parse(await pathfinder.flow(JSON.stringify({"from": from, "to": to, "value": value, "prune": prune})));
     if (data.debug) {
         document.getElementById('debug').innerText = "DEBUG from pathfinder:\n" + data.debug;
     }
