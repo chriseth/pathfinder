@@ -4,11 +4,11 @@ set(PROJECT_VERSION "0.0.1")
 project(pathfinder VERSION ${PROJECT_VERSION} LANGUAGES CXX)
 
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
-  find_program(CCACHE ccache DOC "ccache tool path; set to OFF to disable")
-  if(CCACHE)
-    set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
-    message(STATUS "[ccache] Enabled: ${CCACHE}")
-  endif()
+	find_program(CCACHE ccache DOC "ccache tool path; set to OFF to disable")
+	if(CCACHE)
+		set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE})
+		message(STATUS "[ccache] Enabled: ${CCACHE}")
+	endif()
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -71,27 +71,28 @@ if(EMSCRIPTEN)
 endif()
 
 set(
-	sources
-	adjacencies.cpp
-	adjacencies.h
-	binaryExporter.cpp
-	binaryExporter.h
-	binaryImporter.cpp
-	binaryImporter.h
-	db.cpp
-	db.h
-	encoding.h
-	exceptions.h
-	flow.cpp
-	flow.h
-	importGraph.cpp
-	importGraph.h
-	json.hpp
-	keccak.cpp
-	keccak.h
-	main.cpp
-	types.cpp
-	types.h
+		sources
+		adjacencies.cpp
+		adjacencies.h
+		binaryExporter.cpp
+		binaryExporter.h
+		binaryImporter.cpp
+		binaryImporter.h
+		db.cpp
+		db.h
+		encoding.h
+		exceptions.h
+		flow.cpp
+		flow.h
+		importGraph.cpp
+		importGraph.h
+		json.hpp
+		keccak.cpp
+		keccak.h
+		main.cpp
+		types.cpp
+		types.h
 )
 
+add_library(libpathfinder SHARED ${sources})
 add_executable(pathfinder ${sources})
