@@ -1,9 +1,0 @@
-{"id": 1, "cmd": "signup", "user": "1111", "token": "111100"}
-{"id": 2, "cmd": "transfer", "token": "111100", "from": "0", "to": "1111", "value": "50000"}
-{"id": 3, "cmd": "signup", "user": "2222", "token": "222200"}
-{"id": 4, "cmd": "transfer", "token": "222200", "from": "0", "to": "2222", "value": "60000"}
-{"id": 5, "cmd": "flow", "from": "1111", "to": "2222", "value": "100000"}
-{"id": 6, "cmd": "trust", "canSendTo": "1111", "user": "2222", "limitPercentage": 50}
-{"id": 7, "cmd": "flow", "from": "1111", "to": "2222", "value": "100000"}
-{"id": 8, "cmd": "flow", "from": "2222", "to": "1111", "value": "100000"}
-{"id": 200, "cmd": "exportJson"}

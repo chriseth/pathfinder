@@ -8,24 +8,23 @@ using Node = FlowGraphNode;
 
 namespace
 {
+	Node pseudoNode(Edge const& _edge)
+	{
+		return make_tuple(_edge.from, _edge.token);
+	}
 
-Node pseudoNode(Edge const& _edge)
-{
-	return make_tuple(_edge.from, _edge.token);
-}
+	bool isRealNode(Node const& _node)
+	{
+		return holds_alternative<Address>(_node);
+	}
 
-bool isRealNode(Node const& _node)
-{
-	return holds_alternative<Address>(_node);
-}
-
-Address sourceAddressOf(Node const& _node)
-{
-	if (holds_alternative<Address>(_node))
-		return std::get<Address>(_node);
-	else
-		return std::get<0>(std::get<tuple<Address, Address>>(_node));
-}
+	Address sourceAddressOf(Node const& _node)
+	{
+		if (holds_alternative<Address>(_node))
+			return std::get<Address>(_node);
+		else
+			return std::get<0>(std::get<tuple<Address, Address>>(_node));
+	}
 
 }
 
@@ -37,9 +36,11 @@ vector<pair<Node, Int>> Adjacencies::outgoingEdgesSortedByCapacity(Node const& _
 {
 	vector<pair<Node, Int>> r;
 	map<Node, Int> adjacencies = adjacenciesFrom(_from);
-	if (m_capacityAdjustments.count(_from))
-		for (auto const& [node, adj]: m_capacityAdjustments.at(_from))
+	if (m_capacityAdjustments.count(_from)) {
+		for (auto const &[node, adj]: m_capacityAdjustments.at(_from)) {
 			adjacencies[node] += adj;
+		}
+	}
 	r = {adjacencies.begin(), adjacencies.end()};
 	sort(r.begin(), r.end(), [](pair<Node, Int> const& _a, pair<Node, Int> const& _b) {
 		return make_pair(get<1>(_a), get<0>(_a)) > make_pair(get<1>(_b), get<0>(_b));
@@ -87,8 +88,9 @@ map<Adjacencies::Node, Int> Adjacencies::adjacenciesFrom(Node const& _from)
 		{
 			Edge const& edge = *it;
 			// Another edge from "from x token" to "to" with its own capacity (based on the trust)
-			if (pseudoNode(edge) == _from)
+			if (pseudoNode(edge) == _from) {
 				adj[edge.to] = edge.capacity;
+			}
 		}
 	}
 	m_lazyAdjacencies[_from] = adj;

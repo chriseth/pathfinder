@@ -36,8 +36,6 @@ struct DB
 	/// one node on each edge of the trust graph.
 	std::map<FlowGraphNode, std::map<FlowGraphNode, Int>> m_flowGraph;
 
-	bool m_delayEdgeUpdates = false;
-
 	Safe const& safe(Address const& _address) const;
 	Safe* safeMaybe(Address const& _address)
 	{
@@ -54,29 +52,11 @@ struct DB
 	Token const* tokenMaybe(Address const& _address) const;
 	Token* tokenMaybe(Address const& _address);
 
-	void importFromTheGraph(nlohmann::json const& _file);
-	/// Export the database to json - for testing purposes, does not contain all information.
-	nlohmann::json exportToJson() const;
-
 	/// @returns how much of @a _user's token they can send to @a _canSendTo.
 	Int limit(Address const& _user, Address const& _canSendTo) const;
 
 	void computeEdges();
 	void computeEdgesFrom(Address const& _user);
-	void computeEdgesTo(Address const& _user);
 	std::set<Edge> const& edges() const { return m_edges; }
 	std::map<FlowGraphNode, std::map<FlowGraphNode, Int>> const& flowGraph() const { return m_flowGraph; }
-
-	void updateLimit(DB const& _db, Connection& _connection);
-
-	void signup(Address const& _user, Address const& _token);
-	void organizationSignup(Address const& _organization);
-	void trust(Address const& _canSendTo, Address const& _user, uint32_t _limitPercentage);
-	void transfer(Address const& _token, Address const& _from, Address const& _to, Int const& _value);
-
-	void updateEdgesFrom(Address const& _from);
-	void updateEdgesTo(Address const& _to);
-
-	void delayEdgeUpdates() { m_delayEdgeUpdates = true; }
-	void performEdgeUpdates() { m_delayEdgeUpdates = false; computeEdges(); }
 };

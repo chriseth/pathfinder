@@ -1,11 +1,20 @@
 #include "binaryImporter.h"
-
 #include "encoding.h"
 #include "exceptions.h"
-
 #include <utility>
 
 using namespace std;
+
+set<Edge> importEdgesBinary(istream& _file)
+{
+	return BinaryImporter(_file).readEdgeSet();
+}
+
+set<Edge> importEdgesBinary(string const& _file)
+{
+	ifstream f(_file);
+	return importEdgesBinary(f);
+}
 
 pair<size_t, DB> BinaryImporter::readBlockNumberAndDB()
 {
@@ -38,7 +47,6 @@ set<Edge> BinaryImporter::readEdgeSet()
 
 	return edges;
 }
-
 
 bool BinaryImporter::readBool()
 {
@@ -92,24 +100,6 @@ pair<Address, Safe> BinaryImporter::readSafe()
 	}
 	s.organization = readBool();
 	return {address, s};
-}
-
-Token BinaryImporter::readToken()
-{
-	Token t;
-	t.address = readAddress();
-	t.safeAddress = readAddress();
-	return t;
-}
-
-Connection BinaryImporter::readConnection()
-{
-	Connection c;
-	c.canSendToAddress = readAddress();
-	c.userAddress = readAddress();
-	c.limit = readInt();
-	c.limitPercentage = readSize();
-	return c;
 }
 
 Edge BinaryImporter::readEdge()
