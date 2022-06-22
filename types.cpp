@@ -9,9 +9,9 @@ using namespace std;
 
 Int timesTen(Int const& _value)
 {
-	Int timesTwo = _value + _value;
-	Int timesFour = timesTwo + timesTwo;
-	Int timesEight = timesFour + timesFour;
+	Int timesTwo = _value.timesTwo();
+	Int timesFour = timesTwo.timesTwo();
+	Int timesEight = timesFour.timesTwo();
 	return timesEight + timesTwo;
 }
 
