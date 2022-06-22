@@ -59,7 +59,7 @@ vector<pair<Node, Int>> sortedByCapacity(map<Node, Int> const& _capacities)
 {
 	vector<pair<Node, Int>> r(_capacities.begin(), _capacities.end());
 	sort(r.begin(), r.end(), [](pair<Node, Int> const& _a, pair<Node, Int> const& _b) {
-		return make_pair(get<1>(_a), get<0>(_a)) > make_pair(get<1>(_b), get<0>(_b));
+		return tie(get<1>(_a), get<0>(_a)) > tie(get<1>(_b), get<0>(_b));
 	});
 	return r;
 }

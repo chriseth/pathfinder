@@ -16,7 +16,8 @@ struct Int
 
 	Int(): Int(0) {}
 	explicit Int(uint64_t _value);
-	explicit Int(std::string const& _value);
+	explicit Int(std::string_view _value);
+	explicit Int(std::string const& _value): Int(std::string_view(_value)) {}
 
 	Int& operator+=(Int const& _other);
 	Int operator+(Int const& _other) const
@@ -42,8 +43,8 @@ struct Int
 	bool operator<(Int const& _other) const
 	{
 		return
-			std::make_tuple(data[3], data[2], data[1], data[0]) <
-			std::make_tuple(_other.data[3], _other.data[2], _other.data[1], _other.data[0]);
+			std::tie(data[3], data[2], data[1], data[0]) <
+			std::tie(_other.data[3], _other.data[2], _other.data[1], _other.data[0]);
 	}
 	bool operator>(Int const& _other) const { return _other < *this; }
 	bool operator==(Int const& _other) const
@@ -68,7 +69,8 @@ struct Address
 {
 	std::array<uint8_t, 20> address = {};
 	Address() {}
-	explicit Address(std::string const& _hex);
+	explicit Address(std::string const& _hex): Address(std::string_view(_hex)) {}
+	explicit Address(std::string_view _hex);
 	bool operator<(Address const& _other) const { return address < _other.address; }
 	bool operator==(Address const& _other) const { return address == _other.address; }
 	bool operator!=(Address const& _other) const { return address != _other.address; }
@@ -87,8 +89,8 @@ struct Connection
 	bool operator<(Connection const& _other) const
 	{
 		return
-			std::make_tuple(canSendToAddress, userAddress) <
-			std::make_tuple(_other.canSendToAddress, _other.userAddress);
+			std::tie(canSendToAddress, userAddress) <
+			std::tie(_other.canSendToAddress, _other.userAddress);
 	}
 };
 
@@ -102,8 +104,8 @@ struct Edge
 	bool operator<(Edge const& _other) const
 	{
 		return
-			std::make_tuple(from, to, token) <
-			std::make_tuple(_other.from, _other.to, _other.token);
+			std::tie(from, to, token) <
+			std::tie(_other.from, _other.to, _other.token);
 	}
 };
 
