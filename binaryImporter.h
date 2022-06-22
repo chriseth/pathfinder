@@ -21,8 +21,7 @@ private:
 	Address readAddress();
 	Int readInt();
 	std::pair<Address, Safe> readSafe();
-	Token readToken();
-	Connection readConnection();
+
 	Edge readEdge();
 
 	Address const& address(size_t _index);
