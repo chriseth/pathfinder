@@ -206,12 +206,16 @@ void computeFlowFromEdgesCSV(
 	while (getline(stream, line))
 	{
 		auto it = line.begin();
-		string parts[4];
+		string_view parts[4];
 		for (size_t i = 0; i < 4; i++)
 		{
-			string& part = parts[i];
+			auto partBegin = it;
 			while (it != line.end() && *it != ',')
-				part += *(it++);
+				it++;
+			parts[i] = string_view(line).substr(
+				static_cast<size_t>(partBegin - line.begin()),
+				static_cast<size_t>(it - partBegin)
+			);
 			if (it != line.end() && *it == ',')
 				it++;
 		}
@@ -243,6 +247,40 @@ void computeFlowFromEdgesCSV(
 			{"maxFlowValue", to_string(flow)},
 			{"transferSteps", move(transfersJson)}
 	} << endl;
+}
+
+void edgesCSVToBin(string const& _edgesCSV, string const& _edgesBin)
+{
+	cerr << "Importing csv..." << endl;
+	auto t1 = chrono::high_resolution_clock::now();
+	ifstream stream(_edgesCSV);
+	set<Edge> edges;
+	string line;
+	while (getline(stream, line))
+	{
+		auto it = line.begin();
+		string parts[4];
+		for (size_t i = 0; i < 4; i++)
+		{
+			string& part = parts[i];
+			while (it != line.end() && *it != ',')
+				part += *(it++);
+			if (it != line.end() && *it == ',')
+				it++;
+		}
+		if (parts[0] == "from")
+			// ignore header
+			continue;
+		edges.insert(Edge{Address{parts[0]}, Address{parts[1]}, Address{parts[2]}, Int{parts[3]}});
+	}
+	auto t2 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
+	cerr << "Exporting dat..." << endl;
+
+	BinaryExporter exp(_edgesBin);
+	exp.write(edges);
+	auto t3 = chrono::high_resolution_clock::now();
+	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t3 - t2).count() << endl;
 }
 
 void importDB(string const& _safesJson, string const& _dbDat)
@@ -449,8 +487,10 @@ int main(int argc, char const** argv)
 //		computeDiff(argv[2], argv[3], argv[4]);
 //	else if (argc == 5 && argv[1] == string{"--applyDiff"})
 //		applyDiff(argv[2], argv[3], argv[4]);
-	else if ( argc == 6 && argv[1] == string{"--flowcsv"})
+	else if (argc == 6 && argv[1] == string{"--flowcsv"})
 		computeFlowFromEdgesCSV(Address(string(argv[2])), Address(string(argv[3])), Int(string(argv[4])), argv[5]);
+	else if (argc == 4 && argv[1] == string{"--edgesCSVToBin"})
+		edgesCSVToBin(argv[2], argv[3]);
 	else if (
 			(argc == 6 && argv[1] == string{"--flow"}) ||
 			(argc == 5 && string(argv[1]).substr(0, 2) != "--")
@@ -462,6 +502,7 @@ int main(int argc, char const** argv)
 		cerr << "Options: " << endl;
 		cerr << "  --json                                     JSON mode via stdin/stdout." << endl;
 		cerr << "  --flowcsv <from> <to> <value> <edges.csv>  Compute max flow up to <value> from edges csv and output transfer steps in json." << endl;
+		cerr << "  --edgesCSVToBin <edges.csv> <edges.dat>    Convert edges csv to binray." << endl;
 		cerr << "  [--flow] <from> <to> <value> <db.dat>      Compute max flow up to <value> and output transfer steps in json." << endl;
 		cerr << "  --importDB <safes.json> <db.dat>           Import safes with trust edges and generate transfer limit graph." << endl;
 		cerr << "  --dbToEdges <db.dat> <edges.dat>           Import safes with trust edges and generate transfer limit graph." << endl;

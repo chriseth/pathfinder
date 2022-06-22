@@ -42,7 +42,7 @@ vector<pair<Node, Int>> Adjacencies::outgoingEdgesSortedByCapacity(Node const& _
 			adjacencies[node] += adj;
 	r = {adjacencies.begin(), adjacencies.end()};
 	sort(r.begin(), r.end(), [](pair<Node, Int> const& _a, pair<Node, Int> const& _b) {
-		return make_pair(get<1>(_a), get<0>(_a)) > make_pair(get<1>(_b), get<0>(_b));
+		return tie(get<1>(_a), get<0>(_a)) > tie(get<1>(_b), get<0>(_b));
 	});
 	return r;
 }
