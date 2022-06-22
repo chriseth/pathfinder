@@ -137,12 +137,16 @@ void computeFlowFromEdgesCSV(
 	while (getline(stream, line))
 	{
 		auto it = line.begin();
-		string parts[4];
+		string_view parts[4];
 		for (size_t i = 0; i < 4; i++)
 		{
-			string& part = parts[i];
+			auto partBegin = it;
 			while (it != line.end() && *it != ',')
-				part += *(it++);
+				it++;
+			parts[i] = string_view(line).substr(
+				static_cast<size_t>(partBegin - line.begin()),
+				static_cast<size_t>(it - partBegin)
+			);
 			if (it != line.end() && *it == ',')
 				it++;
 		}

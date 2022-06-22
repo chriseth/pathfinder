@@ -9,9 +9,9 @@ using namespace std;
 
 Int timesTen(Int const& _value)
 {
-	Int timesTwo = _value + _value;
-	Int timesFour = timesTwo + timesTwo;
-	Int timesEight = timesFour + timesFour;
+	Int timesTwo = _value.timesTwo();
+	Int timesFour = timesTwo.timesTwo();
+	Int timesEight = timesFour.timesTwo();
 	return timesEight + timesTwo;
 }
 
@@ -23,7 +23,7 @@ Int::Int(uint64_t _value)
 	data[3] = 0;
 }
 
-Int::Int(string const& _value): Int(0)
+Int::Int(string_view _value): Int(0)
 {
 	if (_value.size() >= 2 && _value[0] == '0' && _value[1] == 'x')
 		for (size_t i = _value.size() - 1; i >= 2; --i)
@@ -36,7 +36,7 @@ Int::Int(string const& _value): Int(0)
 		{
 			*this = timesTen(*this);
 			require('0' <= c && c <= '9');
-			*this += Int(uint64_t(c - '0'));
+			data[0] |= static_cast<uint64_t>(c - '0');
 		}
 }
 
@@ -165,14 +165,14 @@ string to_string(Int _value)
 	return result.empty() ? "0" : result;
 }
 
-Address::Address(string const& _hex)
+Address::Address(string_view _hex)
 {
 	if (_hex.size() >= 2 && _hex[0] == '0' && _hex[1] == 'x')
 	{
 		require(_hex.size() == 2 + 2 * 20);
 
 		for (size_t i = 2; i < _hex.size(); i += 2)
-			address[i / 2 - 1] = (fromHex(_hex[i]) << 4) + fromHex(_hex[i + 1]);
+			address[i / 2 - 1] = (fromHex(_hex[i]) << 4) | fromHex(_hex[i + 1]);
 	}
 	else
 	{
