@@ -10,6 +10,8 @@
 #include <iostream>
 #include <sstream>
 #include <chrono>
+#include <thread>
+#include <mutex>
 
 using namespace std;
 using json = nlohmann::json;
@@ -55,17 +57,13 @@ string debugData(vector<Edge> const& _transfers)
 	return out;
 }
 
-json flowJson(json const& _parameters)
+json flowJson(json const& _parameters, set<Edge> const& _edges)
 {
 	Address from{string(_parameters["from"])};
 	Address to{string(_parameters["to"])};
 	Int value{string(_parameters["value"])};
 	bool prune = _parameters.contains("prune") && _parameters["prune"];
-#if USE_FLOW
-	auto [flow, transfers] = computeFlow(from, to, db.flowGraph(), value);
-#else
-	auto [flow, transfers] = computeFlow(from, to, db.edges(), value, prune);
-#endif
+	auto [flow, transfers] = computeFlow(from, to, _edges, value, prune);
 
 	json output;
 	output["flow"] = to_string(flow);
@@ -147,7 +145,7 @@ char const* adjacencies(char const* _user)
 char const* flow(char const* _input)
 {
 	static string retVal;
-	retVal = flowJson(json::parse(string(_input))).dump();
+	retVal = flowJson(json::parse(string(_input)), db.edges()).dump();
 	return retVal.c_str();
 }
 }
@@ -406,7 +404,9 @@ void applyDiff(string const& _oldEdges, string const& _diff, string const& _newE
 
 void jsonMode()
 {
-	map<string, function<json(json const&)>> functions{
+	mutex coutMutex;
+
+	map<string, function<optional<json>(json const&)>> functions{
 		{"loaddb", [](json const& _input) {
 			ifstream instream{string{_input["file"]}};
 			size_t blockNumber;
@@ -425,7 +425,19 @@ void jsonMode()
 			return json{};
 		}},
 		{"exportJson", [](json const&) { return db.exportToJson(); }},
-		{"flow", [](json const& _input) { return flowJson(_input); }},
+		{"flow", [&coutMutex](json const& _input) {
+			//cerr << "starting thread for id " << _input["id"] << endl;
+			set<Edge> edgeCopy = db.edges();
+			thread([&coutMutex](json _input, set<Edge> _edgeCopy) {
+				//cerr << " -started thread for id " << _input["id"] << endl;
+				json output = flowJson(_input, _edgeCopy);
+				output["id"] = _input["id"];
+				lock_guard<mutex> guard(coutMutex);
+				//cerr << "FINISHED " << _input["id"] << endl;
+				cout << output.dump() << endl;
+			}, _input, move(edgeCopy)).detach();
+			return nullopt;
+		}},
 		{"adjacencies", [](json const& _input) { return json{{"adjacencies", adjacenciesJson(_input["user"])}}; }},
 		{"edgeCount", [](json const&) { return json{{"edgeCount", db.edges().size()}}; }},
 		{"delayEdgeUpdates", [](json const&) { db.delayEdgeUpdates(); return json{}; }},
@@ -456,7 +468,7 @@ void jsonMode()
 		json input = json::parse(line);
 		string cmd = input["cmd"];
 		json id = input["id"];
-		json output;
+		optional<json> output;
 		if (functions.count(cmd))
 		{
 			try
@@ -470,8 +482,14 @@ void jsonMode()
 		}
 		else
 			output = json{{"error", "Command not found."}};
-		output["id"] = id;
-		cout << output.dump() << endl;
+		if (output)
+		{
+			(*output)["id"] = id;
+			lock_guard<mutex> guard(coutMutex);
+			cout << output->dump() << endl;
+		}
+		// otherwise, the function runs in its own thread and performs the output
+		// later on its own.
 	}
 }
 

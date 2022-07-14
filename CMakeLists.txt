@@ -15,6 +15,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Threads REQUIRED)
+
 add_compile_options(-Wall)
 add_compile_options(-Wextra)
 add_compile_options(-Werror)
@@ -95,3 +97,5 @@ set(
 )
 
 add_executable(pathfinder ${sources})
+target_link_libraries(pathfinder Threads::Threads)
+
