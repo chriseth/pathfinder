@@ -227,7 +227,7 @@ void computeFlowFromEdgesCSV(
 	auto t2 = chrono::high_resolution_clock::now();
 	cerr << "Took " << chrono::duration_cast<chrono::duration<double>>(t2 - t1).count() << endl;
 
-	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value);
+	auto [flow, transfers] = computeFlow(_source, _sink, edges, _value, true);
 //	cout << "Flow: " << flow << endl;
 //	cout << "Transfers: " << endl;
 //	for (Edge const& edge: transfers)
