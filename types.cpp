@@ -36,7 +36,7 @@ Int::Int(string_view _value): Int(0)
 		{
 			*this = timesTen(*this);
 			require('0' <= c && c <= '9');
-			data[0] |= static_cast<uint64_t>(c - '0');
+			data[0] += static_cast<uint64_t>(c - '0');
 		}
 }
 
